@@ -129,7 +129,7 @@ const HomePage = () => {
           <Leaf className="w-3 h-3" />
           <span className="font-semibold">Reduce • Reuse • Recycle</span>
         </div>
-        <p>© 2026 ROSi. Developed by @4anakmasadepan</p>
+        <p>Developed by @4anakmasadepan</p>
       </div>
     </div>
   );
