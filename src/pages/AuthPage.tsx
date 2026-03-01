@@ -31,7 +31,7 @@ const AuthPage = () => {
           password,
           options: {
             data: { nickname },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: "https://rosi-eco-market.vercel.app/",
           },
         });
         if (error) throw error;
