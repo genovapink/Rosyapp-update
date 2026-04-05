@@ -119,6 +119,33 @@ const AuthPage = () => {
           >
             {loading ? "Loading..." : isLogin ? "Masuk" : "Daftar"}
           </button>
+
+          {isLogin && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!email) {
+                  toast.error("Masukkan email kamu terlebih dahulu");
+                  return;
+                }
+                setLoading(true);
+                try {
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
+                  if (error) throw error;
+                  toast.success("Link reset password sudah dikirim ke email kamu!");
+                } catch (error: any) {
+                  toast.error(error.message || "Gagal mengirim link reset");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="w-full text-sm text-primary font-semibold"
+            >
+              Lupa Password?
+            </button>
+          )}
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
