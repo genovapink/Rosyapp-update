@@ -7,7 +7,7 @@ interface IntroAnimationProps {
 }
 
 const IntroAnimation = ({ onComplete }: IntroAnimationProps) => {
-  const [phase, setPhase] = useState<"logo" | "text" | "exit">("logo");
+  const [phase, setPhase] = useState<"fadeIn" | "spin" | "text" | "exit">("fadeIn");
 
   const rosiText = "Rosy";
   const scanText = "Scan";
@@ -22,33 +22,38 @@ const IntroAnimation = ({ onComplete }: IntroAnimationProps) => {
           transition={{ duration: 0.5 }}
         >
           <div className="flex items-center gap-4">
-            {/* Logo: fade in → spin → slide left */}
-            <motion.img
-              src={rosiLogo}
-              alt="ROSi"
-              className="w-20 h-20"
-              initial={{ opacity: 0, scale: 0.5, x: 0 }}
-              animate={
-                phase === "logo"
-                  ? [
-                      { opacity: 1, scale: 1, rotate: 0 },
-                      { opacity: 1, scale: 1, rotate: 360 },
-                    ]
-                  : { opacity: 1, scale: 1, rotate: 360, x: 0 }
-              }
-              transition={
-                phase === "logo"
-                  ? {
-                      times: [0, 1],
-                      duration: 1.8,
-                      ease: "easeInOut",
-                    }
-                  : { duration: 0.4 }
-              }
-              onAnimationComplete={() => {
-                if (phase === "logo") setPhase("text");
-              }}
-            />
+            {/* Logo phases */}
+            {phase === "fadeIn" && (
+              <motion.img
+                src={rosiLogo}
+                alt="ROSi"
+                className="w-20 h-20"
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                onAnimationComplete={() => setPhase("spin")}
+              />
+            )}
+
+            {phase === "spin" && (
+              <motion.img
+                src={rosiLogo}
+                alt="ROSi"
+                className="w-20 h-20"
+                initial={{ rotate: 0 }}
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.8, ease: "easeInOut" }}
+                onAnimationComplete={() => setPhase("text")}
+              />
+            )}
+
+            {phase === "text" && (
+              <motion.img
+                src={rosiLogo}
+                alt="ROSi"
+                className="w-20 h-20"
+              />
+            )}
 
             {/* Typing text */}
             {phase === "text" && (
