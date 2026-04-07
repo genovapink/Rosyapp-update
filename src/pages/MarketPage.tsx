@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search, Filter, MapPin, X, Upload, ArrowLeft } from "lucide-react";
+import { Plus, Search, Filter, MapPin, X, Upload, ArrowLeft, Heart, Edit2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -25,17 +25,30 @@ const wasteTypeMap: Record<string, string> = {
   Plastik: "plastic", Kaca: "glass", Kertas: "paper", Logam: "metal", Organik: "organic", Elektronik: "ewaste",
 };
 
+const categories = [
+  { id: "plastic", name: "Plastic" },
+  { id: "glass", name: "Glass" },
+  { id: "paper", name: "Paper" },
+  { id: "metal", name: "Metal" },
+  { id: "organic", name: "Organic" },
+  { id: "ewaste", name: "E-Waste" },
+];
+
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+
 const MarketPage = () => {
   const [items, setItems] = useState<MarketItem[]>([]);
   const [activeFilter, setActiveFilter] = useState("Semua");
   const [showNewListing, setShowNewListing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MarketItem | null>(null);
+  const [editingItem, setEditingItem] = useState<MarketItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // New listing form state
+  // Form state
   const [title, setTitle] = useState(searchParams.get("name") || "");
   const [description, setDescription] = useState("");
   const [wasteType, setWasteType] = useState(searchParams.get("category") || "plastic");
@@ -46,30 +59,46 @@ const MarketPage = () => {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Pre-fill from scan
   useEffect(() => {
     const scanImage = searchParams.get("image");
-    if (scanImage) {
-      setPreviewUrls([scanImage]);
-    }
-    if (searchParams.get("scan_id")) {
-      setShowNewListing(true);
-    }
+    if (scanImage) setPreviewUrls([scanImage]);
+    if (searchParams.get("scan_id")) setShowNewListing(true);
   }, [searchParams]);
+
+  // Fetch favorites
+  useEffect(() => {
+    if (!user) return;
+    const fetchFavs = async () => {
+      const { data } = await supabase.from("favorites" as any).select("listing_id").eq("user_id", user.id);
+      if (data) setFavorites(new Set((data as any[]).map((f: any) => f.listing_id)));
+    };
+    fetchFavs();
+  }, [user]);
+
+  const toggleFavorite = async (e: React.MouseEvent, listingId: string) => {
+    e.stopPropagation();
+    if (!user) { toast.error("Login dulu"); navigate("/auth"); return; }
+
+    const isFav = favorites.has(listingId);
+    if (isFav) {
+      await supabase.from("favorites" as any).delete().eq("user_id", user.id).eq("listing_id", listingId);
+      setFavorites((prev) => { const n = new Set(prev); n.delete(listingId); return n; });
+    } else {
+      await supabase.from("favorites" as any).insert({ user_id: user.id, listing_id: listingId } as any);
+      setFavorites((prev) => new Set(prev).add(listingId));
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
     let query = supabase.from("market_listings" as any).select("*").eq("status", "active").order("created_at", { ascending: false });
-
     if (activeFilter !== "Semua") {
       const mappedType = wasteTypeMap[activeFilter];
       if (mappedType) query = query.eq("waste_type", mappedType);
     }
-
     const { data, error } = await query;
     if (error) { console.error(error); setLoading(false); return; }
 
-    // Fetch seller nicknames
     const userIds = [...new Set((data as any[]).map((d: any) => d.user_id))];
     let profiles: any[] = [];
     if (userIds.length > 0) {
@@ -77,13 +106,11 @@ const MarketPage = () => {
       profiles = (p || []) as any[];
     }
 
-    const enriched = (data as any[]).map((item: any) => ({
+    setItems((data as any[]).map((item: any) => ({
       ...item,
       image_urls: item.image_urls || [],
       seller_nickname: profiles.find((p: any) => p.user_id === item.user_id)?.nickname || "User",
-    }));
-
-    setItems(enriched);
+    })));
     setLoading(false);
   };
 
@@ -91,6 +118,12 @@ const MarketPage = () => {
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).slice(0, 3);
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error("Ukuran file maksimal 15 MB per gambar");
+        return;
+      }
+    }
     setImageFiles(files);
     setPreviewUrls(files.map((f) => URL.createObjectURL(f)));
   };
@@ -99,12 +132,8 @@ const MarketPage = () => {
     e.preventDefault();
     if (!user) { toast.error("Silakan login terlebih dahulu"); navigate("/auth"); return; }
     setSubmitting(true);
-
     try {
-      // Upload images
       const uploadedUrls: string[] = [];
-      
-      // Include scan image if exists
       const scanImage = searchParams.get("image");
       if (scanImage) uploadedUrls.push(scanImage);
 
@@ -116,52 +145,79 @@ const MarketPage = () => {
         uploadedUrls.push(urlData.publicUrl);
       }
 
-      const { error } = await supabase.from("market_listings" as any).insert({
-        user_id: user.id,
-        title,
-        description,
-        waste_type: wasteType,
-        weight_kg: weightKg ? parseFloat(weightKg) : null,
-        price: parseInt(price) || 0,
-        location,
-        image_urls: uploadedUrls.slice(0, 3),
-        scan_result_id: searchParams.get("scan_id") || null,
-      } as any);
+      if (editingItem) {
+        const { error } = await supabase.from("market_listings" as any)
+          .update({
+            title, description, waste_type: wasteType,
+            weight_kg: weightKg ? parseFloat(weightKg) : null,
+            price: parseInt(price) || 0, location,
+            image_urls: uploadedUrls.length > 0 ? uploadedUrls.slice(0, 3) : editingItem.image_urls,
+          } as any)
+          .eq("id", editingItem.id);
+        if (error) throw error;
+        toast.success("Listing berhasil diupdate!");
+      } else {
+        const { error } = await supabase.from("market_listings" as any).insert({
+          user_id: user.id, title, description, waste_type: wasteType,
+          weight_kg: weightKg ? parseFloat(weightKg) : null,
+          price: parseInt(price) || 0, location,
+          image_urls: uploadedUrls.slice(0, 3),
+          scan_result_id: searchParams.get("scan_id") || null,
+        } as any);
+        if (error) throw error;
+        toast.success("Listing berhasil dibuat!");
+      }
 
-      if (error) throw error;
-      toast.success("Listing berhasil dibuat!");
       setShowNewListing(false);
-      setTitle(""); setDescription(""); setWeightKg(""); setPrice(""); setLocation("");
-      setImageFiles([]); setPreviewUrls([]);
+      setEditingItem(null);
+      resetForm();
       fetchItems();
     } catch (err: any) {
-      toast.error(err.message || "Gagal membuat listing");
+      toast.error(err.message || "Gagal menyimpan listing");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const resetForm = () => {
+    setTitle(""); setDescription(""); setWeightKg(""); setPrice(""); setLocation("");
+    setImageFiles([]); setPreviewUrls([]);
+  };
+
+  const handleEdit = (item: MarketItem) => {
+    setEditingItem(item);
+    setTitle(item.title);
+    setDescription(item.description || "");
+    setWasteType(item.waste_type);
+    setWeightKg(item.weight_kg?.toString() || "");
+    setPrice(item.price.toString());
+    setLocation(item.location || "");
+    setPreviewUrls(item.image_urls);
+    setShowNewListing(true);
+    setSelectedItem(null);
+  };
+
+  const handleDelete = async (item: MarketItem) => {
+    if (!confirm("Hapus listing ini?")) return;
+    const { error } = await supabase.from("market_listings" as any).delete().eq("id", item.id);
+    if (error) { toast.error("Gagal menghapus"); return; }
+    toast.success("Listing dihapus");
+    setSelectedItem(null);
+    fetchItems();
+  };
+
   const startChat = async (item: MarketItem) => {
     if (!user) { toast.error("Login dulu"); navigate("/auth"); return; }
     if (item.user_id === user.id) { toast.info("Ini listing kamu sendiri"); return; }
-
-    // Find or create conversation
-    const { data: existing } = await supabase
-      .from("conversations" as any)
-      .select("*")
-      .eq("listing_id", item.id)
-      .eq("buyer_id", user.id)
-      .eq("seller_id", item.user_id)
-      .maybeSingle();
+    const { data: existing } = await supabase.from("conversations" as any).select("*")
+      .eq("listing_id", item.id).eq("buyer_id", user.id).eq("seller_id", item.user_id).maybeSingle();
 
     let conversationId: string;
     if (existing) {
       conversationId = (existing as any).id;
     } else {
       const { data: newConv, error } = await supabase.from("conversations" as any).insert({
-        listing_id: item.id,
-        buyer_id: user.id,
-        seller_id: item.user_id,
+        listing_id: item.id, buyer_id: user.id, seller_id: item.user_id,
       } as any).select().single();
       if (error) { toast.error("Gagal memulai chat"); return; }
       conversationId = (newConv as any).id;
@@ -171,6 +227,7 @@ const MarketPage = () => {
 
   // Detail view
   if (selectedItem) {
+    const isOwner = user?.id === selectedItem.user_id;
     return (
       <div className="px-4 pt-6 space-y-4">
         <button onClick={() => setSelectedItem(null)} className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -184,7 +241,12 @@ const MarketPage = () => {
           </div>
         )}
         <div className="space-y-3">
-          <h1 className="text-xl font-extrabold text-foreground">{selectedItem.title}</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-extrabold text-foreground">{selectedItem.title}</h1>
+            <button onClick={(e) => toggleFavorite(e, selectedItem.id)}>
+              <Heart className={`w-6 h-6 ${favorites.has(selectedItem.id) ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
+            </button>
+          </div>
           <p className="text-2xl font-extrabold text-primary">Rp {selectedItem.price.toLocaleString()}</p>
           <div className="flex gap-2">
             <span className="px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-xs font-bold">{selectedItem.waste_type}</span>
@@ -193,22 +255,36 @@ const MarketPage = () => {
           {selectedItem.location && <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{selectedItem.location}</p>}
           {selectedItem.description && <p className="text-sm text-foreground">{selectedItem.description}</p>}
           <p className="text-xs text-muted-foreground">Dijual oleh: {selectedItem.seller_nickname}</p>
-          <button onClick={() => startChat(selectedItem)}
-            className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm">
-            💬 Chat Penjual
-          </button>
+
+          {isOwner ? (
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => handleEdit(selectedItem)}
+                className="bg-card border border-border text-foreground py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                <Edit2 className="w-4 h-4" /> Edit
+              </button>
+              <button onClick={() => handleDelete(selectedItem)}
+                className="bg-destructive text-destructive-foreground py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                <Trash2 className="w-4 h-4" /> Hapus
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => startChat(selectedItem)}
+              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm">
+              💬 Chat Penjual
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  // New listing form
+  // New/Edit listing form
   if (showNewListing) {
     return (
       <div className="px-4 pt-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-extrabold text-foreground">Jual Sampah</h1>
-          <button onClick={() => setShowNewListing(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+          <h1 className="text-xl font-extrabold text-foreground">{editingItem ? "Edit Listing" : "Jual Sampah"}</h1>
+          <button onClick={() => { setShowNewListing(false); setEditingItem(null); resetForm(); }}><X className="w-5 h-5 text-muted-foreground" /></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nama barang" required
@@ -228,9 +304,8 @@ const MarketPage = () => {
           <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Lokasi"
             className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
           
-          {/* Image upload */}
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Foto (maks 3)</p>
+            <p className="text-xs text-muted-foreground mb-2">Foto (maks 3, maks 15 MB/foto)</p>
             {previewUrls.length > 0 && (
               <div className="flex gap-2 mb-2">
                 {previewUrls.map((url, i) => (
@@ -246,7 +321,7 @@ const MarketPage = () => {
 
           <button type="submit" disabled={submitting}
             className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
-            {submitting ? "Memproses..." : "Posting ke Market"}
+            {submitting ? "Memproses..." : editingItem ? "Simpan Perubahan" : "Posting ke Market"}
           </button>
         </form>
       </div>
@@ -300,7 +375,7 @@ const MarketPage = () => {
             {items.map((item) => (
               <motion.button key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                 onClick={() => setSelectedItem(item)}
-                className="bg-card border border-border rounded-xl overflow-hidden text-left">
+                className="bg-card border border-border rounded-xl overflow-hidden text-left relative">
                 {item.image_urls[0] ? (
                   <img src={item.image_urls[0]} alt={item.title} className="w-full aspect-square object-cover" />
                 ) : (
@@ -308,6 +383,12 @@ const MarketPage = () => {
                     <MapPin className="w-8 h-8 text-muted-foreground/30" />
                   </div>
                 )}
+                <button
+                  onClick={(e) => toggleFavorite(e, item.id)}
+                  className="absolute top-2 right-2 w-8 h-8 bg-card/80 backdrop-blur-sm rounded-full flex items-center justify-center"
+                >
+                  <Heart className={`w-4 h-4 ${favorites.has(item.id) ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
+                </button>
                 <div className="p-3">
                   <p className="text-sm font-bold text-foreground truncate">{item.title}</p>
                   <p className="text-xs text-muted-foreground">{item.waste_type} {item.weight_kg ? `• ${item.weight_kg}kg` : ""}</p>
@@ -322,14 +403,5 @@ const MarketPage = () => {
     </div>
   );
 };
-
-const categories = [
-  { id: "plastic", name: "Plastic" },
-  { id: "glass", name: "Glass" },
-  { id: "paper", name: "Paper" },
-  { id: "metal", name: "Metal" },
-  { id: "organic", name: "Organic" },
-  { id: "ewaste", name: "E-Waste" },
-];
 
 export default MarketPage;

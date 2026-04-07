@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight } from "lucide-react";
+import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight, BookOpen, Megaphone } from "lucide-react";
 import rosiLogo from "@/assets/rosi-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Badge } from "@/components/ui/badge";
 
 const categories = [
   { name: "Plastik", emoji: "♻️" },
@@ -19,12 +20,14 @@ const HomePage = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [globalStats, setGlobalStats] = useState({ scans: 0, recycled: 0, users: 0 });
+  const [activeAds, setActiveAds] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      const [scansRes, profilesRes] = await Promise.all([
+    const fetchData = async () => {
+      const [scansRes, profilesRes, adsRes] = await Promise.all([
         supabase.from("scan_results" as any).select("id", { count: "exact", head: true }),
         supabase.from("profiles" as any).select("id, total_recycled_kg"),
+        supabase.from("promotions" as any).select("*").eq("status", "active"),
       ]);
 
       const profiles = (profilesRes.data || []) as any[];
@@ -35,8 +38,13 @@ const HomePage = () => {
         recycled: totalRecycled,
         users: profiles.length,
       });
+
+      // Filter only active (within 30 days)
+      const now = new Date();
+      const ads = ((adsRes.data || []) as any[]).filter((ad: any) => ad.end_date && new Date(ad.end_date) > now);
+      setActiveAds(ads);
     };
-    fetchStats();
+    fetchData();
   }, []);
 
   const stats = [
@@ -72,6 +80,28 @@ const HomePage = () => {
         </div>
       </motion.div>
 
+      {/* Trash Lesson Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        onClick={() => navigate("/rosycourse")}
+        className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow relative"
+      >
+        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+          <BookOpen className="w-5 h-5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-extrabold text-foreground">Trash Lesson</p>
+            <Badge variant="destructive" className="text-[9px] px-1.5 py-0">NEW</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">Pelajari mengolah sampahmu</p>
+          <p className="text-[10px] text-primary font-semibold">+ Rosy Poin</p>
+        </div>
+        <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      </motion.div>
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {stats.map((stat, i) => (
@@ -84,15 +114,32 @@ const HomePage = () => {
         ))}
       </div>
 
-      {/* Ad Banner */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="w-[300px] h-[250px] mx-auto flex items-center justify-center bg-muted">
-          <div className="text-center text-muted-foreground">
-            <ShoppingBag className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-xs font-semibold">Ruang Iklan 300×250</p>
-            <p className="text-[10px]">Hubungi kami untuk beriklan</p>
-          </div>
+      {/* Active Promotions */}
+      {activeAds.length > 0 && (
+        <div className="space-y-2">
+          {activeAds.map((ad: any) => (
+            <div key={ad.id} className="bg-card border border-border rounded-xl overflow-hidden relative">
+              {ad.image_url && <img src={ad.image_url} alt={ad.title} className="w-full h-40 object-cover" />}
+              <div className="p-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-foreground">{ad.title}</p>
+                  <Badge className="text-[9px] px-1.5 py-0 bg-accent text-accent-foreground">Promoted</Badge>
+                </div>
+                {ad.description && <p className="text-xs text-muted-foreground mt-1">{ad.description}</p>}
+              </div>
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Ad Banner / Advertise CTA */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <button onClick={() => navigate("/advertise")} className="w-full p-4 flex flex-col items-center gap-2 text-center">
+          <Megaphone className="w-8 h-8 text-primary opacity-70" />
+          <p className="text-sm font-bold text-foreground">Advertise with Us</p>
+          <p className="text-xs text-muted-foreground">Promosikan produkmu di ROSi</p>
+          <span className="text-xs text-primary font-semibold">Mulai dari Rp 25.000 →</span>
+        </button>
       </div>
 
       {/* Education */}
