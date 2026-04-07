@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, X, Leaf, ArrowRight, Check, Upload, RotateCcw, Share2, Twitter } from "lucide-react";
+import { Camera, X, Leaf, ArrowRight, Check, Upload, RotateCcw, Share2, Twitter, Shuffle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ const categories = [
   { id: "metal", name: "Metal", color: "bg-muted-foreground" },
   { id: "organic", name: "Organic", color: "bg-rosi-orange" },
   { id: "ewaste", name: "E-Waste", color: "bg-rosi-purple" },
+  { id: "random", name: "Random", color: "bg-foreground" },
 ];
 
 const steps = ["CATEGORY", "PHOTO", "RESULT"];
@@ -61,16 +62,10 @@ const ScanWastePage = () => {
       const blob = new Blob([byteArray], { type: "image/jpeg" });
 
       const fileName = `${user.id}/${Date.now()}.jpg`;
-      const { error } = await supabase.storage
-        .from("waste-images")
-        .upload(fileName, blob);
-
+      const { error } = await supabase.storage.from("waste-images").upload(fileName, blob);
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
-        .from("waste-images")
-        .getPublicUrl(fileName);
-
+      const { data: urlData } = supabase.storage.from("waste-images").getPublicUrl(fileName);
       return urlData.publicUrl;
     } catch (err) {
       console.error("Upload error:", err);
@@ -86,15 +81,18 @@ const ScanWastePage = () => {
     }
     if (!capturedImage || !selectedCategory) return;
 
+    // If random, pick a random category for analysis
+    const analysisCategory = selectedCategory === "random"
+      ? categories.filter(c => c.id !== "random")[Math.floor(Math.random() * (categories.length - 1))].id
+      : selectedCategory;
+
     setIsAnalyzing(true);
     try {
-      // Upload image first
       const imageUrl = await uploadImage(capturedImage);
       setUploadedImageUrl(imageUrl);
 
-      // Call AI edge function
       const { data, error } = await supabase.functions.invoke("analyze-waste", {
-        body: { imageBase64: capturedImage, category: selectedCategory },
+        body: { imageBase64: capturedImage, category: analysisCategory },
       });
 
       if (error) throw error;
@@ -102,12 +100,11 @@ const ScanWastePage = () => {
       const scanResult: ScanResult = data;
       setResult(scanResult);
 
-      // Save to database
       const { data: savedScan, error: saveError } = await supabase
         .from("scan_results" as any)
         .insert({
           user_id: user.id,
-          category: selectedCategory,
+          category: analysisCategory,
           image_url: imageUrl,
           result_name: scanResult.result_name,
           is_valuable: scanResult.is_valuable,
@@ -121,7 +118,6 @@ const ScanWastePage = () => {
       if (saveError) console.error("Save error:", saveError);
       if (savedScan) setSavedScanId((savedScan as any).id);
 
-      // Update profile stats
       await supabase
         .from("profiles" as any)
         .update({
@@ -167,7 +163,6 @@ const ScanWastePage = () => {
         <p className="text-sm text-muted-foreground">Follow the steps to analyze your item.</p>
       </div>
 
-      {/* Stepper */}
       <div className="flex items-center justify-center gap-6">
         {steps.map((step, i) => (
           <div key={step} className="flex flex-col items-center gap-1">
@@ -191,8 +186,15 @@ const ScanWastePage = () => {
                   className={`bg-card border-2 rounded-xl p-4 flex items-center gap-3 transition-all ${
                     selectedCategory === cat.id ? "border-primary rosi-shadow" : "border-border"
                   }`}>
-                  <div className={`w-3 h-3 rounded-full ${cat.color}`} />
-                  <span className="text-sm font-semibold text-foreground">{cat.name}</span>
+                  {cat.id === "random" ? (
+                    <div className="w-3 h-3 rounded-full bg-foreground" />
+                  ) : (
+                    <div className={`w-3 h-3 rounded-full ${cat.color}`} />
+                  )}
+                  <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    {cat.id === "random" && <Shuffle className="w-3.5 h-3.5" />}
+                    {cat.name}
+                  </span>
                 </button>
               ))}
             </div>
@@ -221,7 +223,7 @@ const ScanWastePage = () => {
               </button>
             )}
             <p className="text-xs text-center text-muted-foreground">
-              Selected Category: <span className="font-bold text-primary uppercase">{selectedCategory}</span>
+              Selected Category: <span className="font-bold text-primary uppercase">{selectedCategory === "random" ? "🎲 Random" : selectedCategory}</span>
             </p>
             <button disabled={!capturedImage || isAnalyzing} onClick={analyzeWaste}
               className="w-full rosi-gradient text-primary-foreground py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-40">
@@ -258,7 +260,6 @@ const ScanWastePage = () => {
               </div>
             </div>
 
-            {/* Share & Actions */}
             <button onClick={shareToTwitter}
               className="w-full bg-card border border-border text-foreground py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
               <Twitter className="w-4 h-4" /> Share ke Twitter
