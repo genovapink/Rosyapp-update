@@ -13,6 +13,8 @@ import ChatPage from "./pages/ChatPage";
 import ProfilePage from "./pages/ProfilePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import RosyCoursePage from "./pages/RosyCoursePage";
+import AdvertisePage from "./pages/AdvertisePage";
 import NotFound from "./pages/NotFound";
 import IntroAnimation from "./components/IntroAnimation";
 
