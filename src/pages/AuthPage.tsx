@@ -31,7 +31,7 @@ const AuthPage = () => {
           password,
           options: {
             data: { nickname },
-            emailRedirectTo: "https://rosi-eco-market.vercel.app/",
+            emailRedirectTo: "https://rosiapp.vercel.app/",
           },
         });
         if (error) throw error;
@@ -53,8 +53,8 @@ const AuthPage = () => {
       >
         {/* Logo */}
         <div className="text-center space-y-2">
-          <img src={rosiLogo} alt="ROSi Logo" className="w-20 h-20 mx-auto" />
-          <h1 className="text-3xl font-extrabold text-foreground">ROSi</h1>
+          <img src={rosiLogo} alt="Rosy Logo" className="w-20 h-20 mx-auto" />
+          <h1 className="text-3xl font-extrabold text-foreground">Rosy</h1>
           <p className="text-sm text-muted-foreground">
             {isLogin ? "Masuk ke akun kamu" : "Buat akun baru"}
           </p>

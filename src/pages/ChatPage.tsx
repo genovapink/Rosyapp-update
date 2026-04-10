@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Send, MessageCircle, ArrowLeft } from "lucide-react";
+import { Send, MessageCircle, ArrowLeft, BadgeCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
+
+const ROSY_OFFICIAL_ID = "352cfaa2-1cbb-4abd-90e3-9e7f349d9cfd";
 
 interface Conversation {
   id: string;
@@ -138,8 +140,11 @@ const ChatPage = () => {
           <button onClick={() => setActiveConversation(null)}>
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <div>
+          <div className="flex items-center gap-1">
             <p className="font-bold text-foreground text-sm">{conv?.other_nickname || "Chat"}</p>
+            {conv && (conv.seller_id === ROSY_OFFICIAL_ID || conv.buyer_id === ROSY_OFFICIAL_ID) && (
+              <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
+            )}
           </div>
         </div>
 
@@ -217,7 +222,12 @@ const ChatPage = () => {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-foreground">{conv.other_nickname}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm font-bold text-foreground">{conv.other_nickname}</p>
+                  {(conv.seller_id === ROSY_OFFICIAL_ID || conv.buyer_id === ROSY_OFFICIAL_ID) && (
+                    <BadgeCheck className="w-3.5 h-3.5 text-blue-500 fill-blue-500" />
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground truncate">
                   {new Date(conv.updated_at).toLocaleDateString("id-ID")}
                 </p>

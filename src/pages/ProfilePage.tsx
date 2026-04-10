@@ -24,7 +24,7 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user && showHistory) {
-      supabase.from("scan_results" as any).select("*").eq("user_id", user.id).order("created_at", { ascending: false }).then(({ data }) => {
+      supabase.from("scan_results").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).then(({ data }) => {
         setScanHistory((data || []) as any[]);
       });
     }
@@ -32,7 +32,7 @@ const ProfilePage = () => {
 
   const handleUpdateProfile = async () => {
     if (!user) return;
-    const { error } = await supabase.from("profiles" as any).update({ nickname, phone } as any).eq("user_id", user.id);
+    const { error } = await supabase.from("profiles").update({ nickname, phone } as any).eq("user_id", user.id);
     if (error) { toast.error("Gagal update profil"); return; }
     toast.success("Profil berhasil diupdate!");
     setShowEditProfile(false);
@@ -51,7 +51,7 @@ const ProfilePage = () => {
           <span className="text-3xl">👤</span>
         </div>
         <h2 className="text-xl font-extrabold text-foreground">Belum Login</h2>
-        <p className="text-sm text-muted-foreground text-center">Masuk untuk menyimpan riwayat scan dan poin ROSi kamu</p>
+        <p className="text-sm text-muted-foreground text-center">Masuk untuk menyimpan riwayat scan dan poin Rosy kamu</p>
         <button onClick={() => navigate("/auth")} className="rosi-gradient text-primary-foreground px-8 py-3 rounded-xl font-bold text-sm">
           Login / Daftar
         </button>
@@ -123,7 +123,7 @@ const ProfilePage = () => {
           {[
             { icon: Scan, label: "Total Scan", value: String(profile?.total_scans || 0) },
             { icon: Recycle, label: "Sampah Terselamatkan", value: `${profile?.total_recycled_kg || 0} kg` },
-            { icon: Star, label: "Poin ROSi", value: String(profile?.points || 0) },
+            { icon: Star, label: "Poin Rosy", value: String(profile?.points || 0) },
           ].map((item) => (
             <div key={item.label} className="flex items-center justify-between py-1">
               <div className="flex items-center gap-3">
@@ -139,12 +139,12 @@ const ProfilePage = () => {
       {/* Menu */}
       <div className="space-y-1">
         <h3 className="font-bold text-foreground mb-2">Account</h3>
-        <button onClick={() => window.open("https://app.u.shopeepay.co.id/u/keRdYZPfc8LEdRe5aKS6F?smtt=0.0.9", "_blank")}
+        <button onClick={() => navigate("/advertise")}
           className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
           <Megaphone className="w-5 h-5 text-muted-foreground" />
           <div className="flex-1">
             <p className="text-sm font-semibold text-foreground">Advertise with Us</p>
-            <p className="text-xs text-muted-foreground">Promote your business on ROSi</p>
+            <p className="text-xs text-muted-foreground">Promote your business on Rosy</p>
           </div>
           <span className="px-3 py-1 rounded-full border border-primary text-primary text-xs font-bold">Pay Now</span>
         </button>
