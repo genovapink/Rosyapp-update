@@ -81,7 +81,6 @@ const ScanWastePage = () => {
     }
     if (!capturedImage || !selectedCategory) return;
 
-    // If random, pick a random category for analysis
     const analysisCategory = selectedCategory === "random"
       ? categories.filter(c => c.id !== "random")[Math.floor(Math.random() * (categories.length - 1))].id
       : selectedCategory;
@@ -101,7 +100,7 @@ const ScanWastePage = () => {
       setResult(scanResult);
 
       const { data: savedScan, error: saveError } = await supabase
-        .from("scan_results" as any)
+        .from("scan_results")
         .insert({
           user_id: user.id,
           category: analysisCategory,
@@ -119,9 +118,9 @@ const ScanWastePage = () => {
       if (savedScan) setSavedScanId((savedScan as any).id);
 
       await supabase
-        .from("profiles" as any)
+        .from("profiles")
         .update({
-          total_scans: (await supabase.from("scan_results" as any).select("id", { count: "exact" }).eq("user_id", user.id)).count || 0,
+          total_scans: (await supabase.from("scan_results").select("id", { count: "exact" }).eq("user_id", user.id)).count || 0,
         } as any)
         .eq("user_id", user.id);
 
@@ -137,7 +136,7 @@ const ScanWastePage = () => {
 
   const shareToTwitter = () => {
     if (!result) return;
-    const text = `🌱 Saya baru saja scan sampah "${result.result_name}" menggunakan ROSi!\n\n${result.is_valuable ? "💰 Sampah ini bernilai ekonomis!" : "♻️ Sampah ini bisa didaur ulang!"}\n\n${result.impact}\n\nCoba scan sampahmu juga di ROSi!\n\nDeveloped by @4anakmasadepan\n#ROSi #RecycleWithROSi`;
+    const text = `🌱 Saya baru saja scan sampah "${result.result_name}" menggunakan Rosy!\n\n${result.is_valuable ? "💰 Sampah ini bernilai ekonomis!" : "♻️ Sampah ini bisa didaur ulang!"}\n\n${result.impact}\n\nCoba scan sampahmu juga di Rosy!\n\nDeveloped by @4anakmasadepan\n#Rosy #RecycleWithRosy`;
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}${uploadedImageUrl ? `&url=${encodeURIComponent(uploadedImageUrl)}` : ""}`;
     window.open(url, "_blank");
   };
@@ -154,6 +153,12 @@ const ScanWastePage = () => {
     setResult(null);
     setSavedScanId(null);
     setUploadedImageUrl(null);
+  };
+
+  // Parse recommendation into steps
+  const parseSteps = (rec: string) => {
+    const lines = rec.split(/\n/).filter(l => l.trim());
+    return lines;
   };
 
   return (
@@ -250,10 +255,22 @@ const ScanWastePage = () => {
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground">{result.description}</p>
-                <div className="bg-secondary/50 rounded-lg p-3">
-                  <p className="text-xs font-bold text-secondary-foreground mb-1">Rekomendasi:</p>
-                  <p className="text-xs text-muted-foreground">{result.recommendation}</p>
+
+                {/* Step-by-step recommendation */}
+                <div className="bg-secondary/50 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-bold text-secondary-foreground">📋 Cara Mengolah / Kreasi:</p>
+                  <div className="space-y-1.5">
+                    {parseSteps(result.recommendation).map((step, i) => (
+                      <div key={i} className="flex gap-2 items-start">
+                        <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-[10px] font-bold text-primary">{i + 1}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{step.replace(/^\d+\.\s*/, '')}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
                 <div className="bg-rosi-green-light rounded-lg p-3">
                   <p className="text-xs text-foreground">{result.impact}</p>
                 </div>

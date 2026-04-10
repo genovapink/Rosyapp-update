@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight, BookOpen, Megaphone } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight, BookOpen, ChevronLeft, ChevronRight, BadgeCheck, MessageCircle } from "lucide-react";
 import rosiLogo from "@/assets/rosi-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 
+const ROSY_OFFICIAL_ID = "352cfaa2-1cbb-4abd-90e3-9e7f349d9cfd";
+
 const categories = [
-  { name: "Plastik", emoji: "♻️" },
-  { name: "Kaca", emoji: "🫙" },
-  { name: "Kertas", emoji: "📄" },
-  { name: "Logam", emoji: "🔩" },
-  { name: "Organik", emoji: "🍂" },
-  { name: "Elektronik", emoji: "💻" },
+  { name: "Plastik", icon: "♻️" },
+  { name: "Kaca", icon: "🫙" },
+  { name: "Kertas", icon: "📄" },
+  { name: "Logam", icon: "🔩" },
+  { name: "Organik", icon: "🍂" },
+  { name: "Elektronik", icon: "💻" },
 ];
 
 const HomePage = () => {
@@ -21,13 +23,14 @@ const HomePage = () => {
   const { user, profile } = useAuth();
   const [globalStats, setGlobalStats] = useState({ scans: 0, recycled: 0, users: 0 });
   const [activeAds, setActiveAds] = useState<any[]>([]);
+  const [adIndex, setAdIndex] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       const [scansRes, profilesRes, adsRes] = await Promise.all([
-        supabase.from("scan_results" as any).select("id", { count: "exact", head: true }),
-        supabase.from("profiles" as any).select("id, total_recycled_kg"),
-        supabase.from("promotions" as any).select("*").eq("status", "active"),
+        supabase.from("scan_results").select("id", { count: "exact", head: true }),
+        supabase.from("profiles").select("id, total_recycled_kg"),
+        supabase.from("promotions").select("*").eq("status", "active"),
       ]);
 
       const profiles = (profilesRes.data || []) as any[];
@@ -39,13 +42,35 @@ const HomePage = () => {
         users: profiles.length,
       });
 
-      // Filter only active (within 30 days)
       const now = new Date();
       const ads = ((adsRes.data || []) as any[]).filter((ad: any) => ad.end_date && new Date(ad.end_date) > now);
       setActiveAds(ads);
     };
     fetchData();
   }, []);
+
+  const handleContactOfficial = async () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    // Check if conversation already exists with official
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("id")
+      .or(`and(buyer_id.eq.${user.id},seller_id.eq.${ROSY_OFFICIAL_ID}),and(buyer_id.eq.${ROSY_OFFICIAL_ID},seller_id.eq.${user.id})`);
+
+    if (existing && existing.length > 0) {
+      navigate(`/chat?conversation=${existing[0].id}`);
+    } else {
+      const { data: newConv } = await supabase
+        .from("conversations")
+        .insert({ buyer_id: user.id, seller_id: ROSY_OFFICIAL_ID } as any)
+        .select()
+        .single();
+      if (newConv) navigate(`/chat?conversation=${(newConv as any).id}`);
+    }
+  };
 
   const stats = [
     { label: "Sampah Di-scan", value: String(globalStats.scans), icon: Scan },
@@ -57,8 +82,8 @@ const HomePage = () => {
     <div className="px-4 pt-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src={rosiLogo} alt="ROSi Logo" className="w-10 h-10" />
-          <h1 className="text-2xl font-extrabold text-foreground">ROSi</h1>
+          <img src={rosiLogo} alt="Rosy Logo" className="w-10 h-10" />
+          <h1 className="text-2xl font-extrabold text-foreground">Rosy</h1>
         </div>
         {user && (
           <p className="text-xs text-muted-foreground">Hi, {profile?.nickname || "User"}!</p>
@@ -72,7 +97,7 @@ const HomePage = () => {
         <div className="absolute bottom-0 left-0 w-20 h-20 bg-[hsl(110_40%_50%/0.2)] rounded-full translate-y-6 -translate-x-6" />
         <div className="relative z-10">
           <h2 className="text-xl font-extrabold leading-tight mb-2">Scan Sampahmu,{"\n"}Selamatkan Bumi 🌍</h2>
-          <p className="text-sm opacity-90 mb-4">Dapatkan Poin ROSi & bantu kurangi sampah</p>
+          <p className="text-sm opacity-90 mb-4">Dapatkan Poin Rosy & bantu kurangi sampah</p>
           <button onClick={() => navigate("/scan")}
             className="bg-card text-primary font-bold px-6 py-2.5 rounded-full text-sm flex items-center gap-2 shadow-md">
             <Scan className="w-4 h-4" /> Scan Sekarang
@@ -114,32 +139,54 @@ const HomePage = () => {
         ))}
       </div>
 
-      {/* Active Promotions */}
-      {activeAds.length > 0 && (
-        <div className="space-y-2">
-          {activeAds.map((ad: any) => (
-            <div key={ad.id} className="bg-card border border-border rounded-xl overflow-hidden relative">
-              {ad.image_url && <img src={ad.image_url} alt={ad.title} className="w-full h-40 object-cover" />}
-              <div className="p-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold text-foreground">{ad.title}</p>
-                  <Badge className="text-[9px] px-1.5 py-0 bg-accent text-accent-foreground">Promoted</Badge>
+      {/* Ad Space - gray area with carousel */}
+      <div className="bg-muted border border-border rounded-xl overflow-hidden min-h-[200px] relative">
+        {activeAds.length > 0 ? (
+          <>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={adIndex}
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.3 }}
+              >
+                {activeAds[adIndex].image_url && (
+                  <img src={activeAds[adIndex].image_url} alt={activeAds[adIndex].title} className="w-full h-40 object-cover" />
+                )}
+                <div className="p-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-foreground">{activeAds[adIndex].title}</p>
+                    <Badge className="text-[9px] px-1.5 py-0 bg-accent text-accent-foreground">Promoted</Badge>
+                  </div>
+                  {activeAds[adIndex].description && (
+                    <p className="text-xs text-muted-foreground mt-1">{activeAds[adIndex].description}</p>
+                  )}
                 </div>
-                {ad.description && <p className="text-xs text-muted-foreground mt-1">{ad.description}</p>}
+              </motion.div>
+            </AnimatePresence>
+            {activeAds.length > 1 && (
+              <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between px-2 pointer-events-none">
+                <button onClick={() => setAdIndex((prev) => (prev - 1 + activeAds.length) % activeAds.length)}
+                  className="pointer-events-auto w-7 h-7 bg-card/80 rounded-full flex items-center justify-center shadow">
+                  <ChevronLeft className="w-4 h-4 text-foreground" />
+                </button>
+                <button onClick={() => setAdIndex((prev) => (prev + 1) % activeAds.length)}
+                  className="pointer-events-auto w-7 h-7 bg-card/80 rounded-full flex items-center justify-center shadow">
+                  <ChevronRight className="w-4 h-4 text-foreground" />
+                </button>
               </div>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
+            <div className="w-10 h-10 bg-muted-foreground/10 rounded-lg flex items-center justify-center mb-2">
+              <ShoppingBag className="w-5 h-5 opacity-40" />
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Ad Banner / Advertise CTA */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <button onClick={() => navigate("/advertise")} className="w-full p-4 flex flex-col items-center gap-2 text-center">
-          <Megaphone className="w-8 h-8 text-primary opacity-70" />
-          <p className="text-sm font-bold text-foreground">Advertise with Us</p>
-          <p className="text-xs text-muted-foreground">Promosikan produkmu di ROSi</p>
-          <span className="text-xs text-primary font-semibold">Mulai dari Rp 25.000 →</span>
-        </button>
+            <p className="text-sm font-semibold">Ruang Iklan 300×250</p>
+            <p className="text-xs">Hubungi kami untuk beriklan</p>
+          </div>
+        )}
       </div>
 
       {/* Education */}
@@ -149,7 +196,7 @@ const HomePage = () => {
           {categories.map((cat, i) => (
             <motion.div key={cat.name} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 * i }}
               className="bg-card border border-border rounded-xl p-3 text-center">
-              <span className="text-2xl">{cat.emoji}</span>
+              <span className="text-2xl grayscale">{cat.icon}</span>
               <p className="text-xs font-semibold mt-1 text-foreground">{cat.name}</p>
             </motion.div>
           ))}
@@ -167,6 +214,24 @@ const HomePage = () => {
           <ShoppingBag className="w-6 h-6 mb-2 text-primary" />
           <p className="text-sm font-bold">Market Sampah</p>
           <ArrowRight className="w-4 h-4 mt-1 text-muted-foreground" />
+        </button>
+      </div>
+
+      {/* Official Contact */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <p className="text-xs text-muted-foreground mb-2">Punya usulan atau laporan?</p>
+        <button onClick={handleContactOfficial} className="flex items-center gap-2 w-full text-left">
+          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-bold text-secondary-foreground">R</span>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-bold text-foreground">Rosy Official</span>
+              <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
+            </div>
+            <p className="text-[10px] text-muted-foreground">Kirim pesan langsung</p>
+          </div>
+          <MessageCircle className="w-5 h-5 text-primary" />
         </button>
       </div>
 

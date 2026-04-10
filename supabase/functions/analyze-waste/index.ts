@@ -13,18 +13,18 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = `You are ROSi, an AI waste analysis assistant. Analyze the waste image provided and respond ONLY with valid JSON (no markdown, no code blocks). The user selected category: "${category}".
+    const systemPrompt = `You are Rosy, an AI waste analysis assistant. Analyze the waste image provided and respond ONLY with valid JSON (no markdown, no code blocks). The user selected category: "${category}".
 
 Return this exact JSON structure:
 {
-  "result_name": "specific name of the waste item",
+  "result_name": "specific name of the waste item in Indonesian",
   "is_valuable": true or false,
   "description": "brief description in Indonesian about this waste",
-  "recommendation": "actionable steps in Indonesian: how to clean, process, recycle, or sell this waste",
+  "recommendation": "detailed step-by-step guide in Indonesian on how to process/recycle this waste. Include numbered steps like: 1. Bersihkan... 2. Pisahkan... 3. Olah menjadi... Also suggest creative DIY ideas if applicable.",
   "impact": "environmental impact in Indonesian of properly recycling this waste, include emoji"
 }
 
-Be specific and helpful. If the image doesn't show waste, still try to identify the object and classify it.`;
+IMPORTANT: The "recommendation" field must contain detailed step-by-step instructions (at least 3-5 steps) on how to process, recycle, or creatively reuse this waste item. Include practical DIY craft ideas when possible. Be specific and actionable.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -68,7 +68,6 @@ Be specific and helpful. If the image doesn't show waste, still try to identify 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
     
-    // Parse JSON from response, handling possible markdown code blocks
     let parsed;
     try {
       const jsonStr = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -78,7 +77,7 @@ Be specific and helpful. If the image doesn't show waste, still try to identify 
         result_name: `${category} Waste`,
         is_valuable: false,
         description: content,
-        recommendation: "Pisahkan dan buang ke tempat sampah yang sesuai.",
+        recommendation: "1. Pisahkan dari sampah lainnya\n2. Bersihkan jika memungkinkan\n3. Buang ke tempat sampah yang sesuai kategorinya",
         impact: "Dengan memilah sampah, kamu membantu mengurangi pencemaran lingkungan! 🌍",
       };
     }
