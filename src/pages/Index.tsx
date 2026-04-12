@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight, BookOpen, ChevronLeft, ChevronRight, BadgeCheck, MessageCircle } from "lucide-react";
+import LanguageMenu from "@/components/LanguageMenu";
 import rosiLogo from "@/assets/rosi-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
