@@ -1,14 +1,20 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, ShoppingBag, MessageCircle, User, Scan } from "lucide-react";
 import { motion } from "framer-motion";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-const navItems = [
-  { path: "/", label: "Home", icon: Home },
-  { path: "/market", label: "Market", icon: ShoppingBag },
-  { path: "/scan", label: "Scan", icon: Scan, center: true },
-  { path: "/chat", label: "Chat", icon: MessageCircle },
-  { path: "/profile", label: "Profil", icon: User },
-];
+const BottomNav = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  const navItems = [
+    { path: "/", label: t("nav.home"), icon: Home },
+    { path: "/market", label: t("nav.market"), icon: ShoppingBag },
+    { path: "/scan", label: t("nav.scan"), icon: Scan, center: true },
+    { path: "/chat", label: t("nav.chat"), icon: MessageCircle },
+    { path: "/profile", label: t("nav.profile"), icon: User },
+  ];
 
 const BottomNav = () => {
   const location = useLocation();
