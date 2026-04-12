@@ -1,29 +1,32 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight, BookOpen, ChevronLeft, ChevronRight, BadgeCheck, MessageCircle } from "lucide-react";
+import LanguageMenu from "@/components/LanguageMenu";
 import rosiLogo from "@/assets/rosi-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
 
 const ROSY_OFFICIAL_ID = "352cfaa2-1cbb-4abd-90e3-9e7f349d9cfd";
 
-const categories = [
-  { name: "Plastik", icon: "♻️" },
-  { name: "Kaca", icon: "🫙" },
-  { name: "Kertas", icon: "📄" },
-  { name: "Logam", icon: "🔩" },
-  { name: "Organik", icon: "🍂" },
-  { name: "Elektronik", icon: "💻" },
-];
-
 const HomePage = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { t } = useLanguage();
   const [globalStats, setGlobalStats] = useState({ scans: 0, recycled: 0, users: 0 });
   const [activeAds, setActiveAds] = useState<any[]>([]);
   const [adIndex, setAdIndex] = useState(0);
+
+  const categories = [
+    { name: t("cat.plastik"), icon: "♻️" },
+    { name: t("cat.kaca"), icon: "🫙" },
+    { name: t("cat.kertas"), icon: "📄" },
+    { name: t("cat.logam"), icon: "🔩" },
+    { name: t("cat.organik"), icon: "🍂" },
+    { name: t("cat.elektronik"), icon: "💻" },
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,16 +35,9 @@ const HomePage = () => {
         supabase.from("profiles").select("id, total_recycled_kg"),
         supabase.from("promotions").select("*").eq("status", "active"),
       ]);
-
       const profiles = (profilesRes.data || []) as any[];
       const totalRecycled = profiles.reduce((acc: number, p: any) => acc + (Number(p.total_recycled_kg) || 0), 0);
-
-      setGlobalStats({
-        scans: scansRes.count || 0,
-        recycled: totalRecycled,
-        users: profiles.length,
-      });
-
+      setGlobalStats({ scans: scansRes.count || 0, recycled: totalRecycled, users: profiles.length });
       const now = new Date();
       const ads = ((adsRes.data || []) as any[]).filter((ad: any) => ad.end_date && new Date(ad.end_date) > now);
       setActiveAds(ads);
@@ -50,32 +46,22 @@ const HomePage = () => {
   }, []);
 
   const handleContactOfficial = async () => {
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
-    // Check if conversation already exists with official
-    const { data: existing } = await supabase
-      .from("conversations")
-      .select("id")
+    if (!user) { navigate("/auth"); return; }
+    const { data: existing } = await supabase.from("conversations").select("id")
       .or(`and(buyer_id.eq.${user.id},seller_id.eq.${ROSY_OFFICIAL_ID}),and(buyer_id.eq.${ROSY_OFFICIAL_ID},seller_id.eq.${user.id})`);
-
     if (existing && existing.length > 0) {
       navigate(`/chat?conversation=${existing[0].id}`);
     } else {
-      const { data: newConv } = await supabase
-        .from("conversations")
-        .insert({ buyer_id: user.id, seller_id: ROSY_OFFICIAL_ID } as any)
-        .select()
-        .single();
+      const { data: newConv } = await supabase.from("conversations")
+        .insert({ buyer_id: user.id, seller_id: ROSY_OFFICIAL_ID } as any).select().single();
       if (newConv) navigate(`/chat?conversation=${(newConv as any).id}`);
     }
   };
 
   const stats = [
-    { label: "Sampah Di-scan", value: String(globalStats.scans), icon: Scan },
-    { label: "Didaur Ulang", value: `${globalStats.recycled}`, icon: Recycle },
-    { label: "Pengguna Aktif", value: String(globalStats.users), icon: TrendingUp },
+    { label: t("home.stats.scans"), value: String(globalStats.scans), icon: Scan },
+    { label: t("home.stats.recycled"), value: `${globalStats.recycled}`, icon: Recycle },
+    { label: t("home.stats.users"), value: String(globalStats.users), icon: TrendingUp },
   ];
 
   return (
@@ -85,49 +71,43 @@ const HomePage = () => {
           <img src={rosiLogo} alt="Rosy Logo" className="w-10 h-10" />
           <h1 className="text-2xl font-extrabold text-foreground">Rosy</h1>
         </div>
-        {user && (
-          <p className="text-xs text-muted-foreground">Hi, {profile?.nickname || "User"}!</p>
-        )}
+        <div className="flex items-center gap-2">
+          {user && <p className="text-xs text-muted-foreground">{t("home.hi")}, {profile?.nickname || "User"}!</p>}
+          <LanguageMenu />
+        </div>
       </div>
 
-      {/* Hero */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="rosi-gradient rounded-2xl p-6 text-primary-foreground relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(110_40%_50%/0.3)] rounded-full -translate-y-8 translate-x-8" />
         <div className="absolute bottom-0 left-0 w-20 h-20 bg-[hsl(110_40%_50%/0.2)] rounded-full translate-y-6 -translate-x-6" />
         <div className="relative z-10">
-          <h2 className="text-xl font-extrabold leading-tight mb-2">Scan Sampahmu,{"\n"}Selamatkan Bumi 🌍</h2>
-          <p className="text-sm opacity-90 mb-4">Dapatkan Poin Rosy & bantu kurangi sampah</p>
+          <h2 className="text-xl font-extrabold leading-tight mb-2 whitespace-pre-line">{t("home.hero.title")}</h2>
+          <p className="text-sm opacity-90 mb-4">{t("home.hero.subtitle")}</p>
           <button onClick={() => navigate("/scan")}
             className="bg-card text-primary font-bold px-6 py-2.5 rounded-full text-sm flex items-center gap-2 shadow-md">
-            <Scan className="w-4 h-4" /> Scan Sekarang
+            <Scan className="w-4 h-4" /> {t("home.hero.button")}
           </button>
         </div>
       </motion.div>
 
-      {/* Trash Lesson Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
         onClick={() => navigate("/rosycourse")}
-        className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow relative"
-      >
+        className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow relative">
         <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
           <BookOpen className="w-5 h-5 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-extrabold text-foreground">Trash Lesson</p>
+            <p className="text-sm font-extrabold text-foreground">{t("home.trash_lesson")}</p>
             <Badge variant="destructive" className="text-[9px] px-1.5 py-0">NEW</Badge>
           </div>
-          <p className="text-xs text-muted-foreground">Pelajari mengolah sampahmu</p>
+          <p className="text-xs text-muted-foreground">{t("home.trash_lesson.desc")}</p>
           <p className="text-[10px] text-primary font-semibold">+ Rosy Poin</p>
         </div>
         <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
       </motion.div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {stats.map((stat, i) => (
           <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * i }}
@@ -139,18 +119,11 @@ const HomePage = () => {
         ))}
       </div>
 
-      {/* Ad Space - gray area with carousel */}
       <div className="bg-muted border border-border rounded-xl overflow-hidden min-h-[200px] relative">
         {activeAds.length > 0 ? (
           <>
             <AnimatePresence mode="wait">
-              <motion.div
-                key={adIndex}
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -30 }}
-                transition={{ duration: 0.3 }}
-              >
+              <motion.div key={adIndex} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.3 }}>
                 {activeAds[adIndex].image_url && (
                   <img src={activeAds[adIndex].image_url} alt={activeAds[adIndex].title} className="w-full h-40 object-cover" />
                 )}
@@ -183,15 +156,14 @@ const HomePage = () => {
             <div className="w-10 h-10 bg-muted-foreground/10 rounded-lg flex items-center justify-center mb-2">
               <ShoppingBag className="w-5 h-5 opacity-40" />
             </div>
-            <p className="text-sm font-semibold">Ruang Iklan 300×250</p>
-            <p className="text-xs">Hubungi kami untuk beriklan</p>
+            <p className="text-sm font-semibold">{t("home.ad_space")}</p>
+            <p className="text-xs">{t("home.ad_contact")}</p>
           </div>
         )}
       </div>
 
-      {/* Education */}
       <div>
-        <h3 className="text-lg font-bold text-foreground mb-3">Kenali Sampahmu</h3>
+        <h3 className="text-lg font-bold text-foreground mb-3">{t("home.categories.title")}</h3>
         <div className="grid grid-cols-3 gap-2">
           {categories.map((cat, i) => (
             <motion.div key={cat.name} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 * i }}
@@ -203,23 +175,21 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* CTA */}
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => navigate("/scan")} className="rosi-gradient text-primary-foreground rounded-xl p-4 text-left">
           <Scan className="w-6 h-6 mb-2" />
-          <p className="text-sm font-bold">Scan Sampah</p>
+          <p className="text-sm font-bold">{t("home.scan_waste")}</p>
           <ArrowRight className="w-4 h-4 mt-1 opacity-70" />
         </button>
         <button onClick={() => navigate("/market")} className="bg-card border border-border text-foreground rounded-xl p-4 text-left">
           <ShoppingBag className="w-6 h-6 mb-2 text-primary" />
-          <p className="text-sm font-bold">Market Sampah</p>
+          <p className="text-sm font-bold">{t("home.market_waste")}</p>
           <ArrowRight className="w-4 h-4 mt-1 text-muted-foreground" />
         </button>
       </div>
 
-      {/* Official Contact */}
       <div className="bg-card border border-border rounded-xl p-4">
-        <p className="text-xs text-muted-foreground mb-2">Punya usulan atau laporan?</p>
+        <p className="text-xs text-muted-foreground mb-2">{t("home.suggestion")}</p>
         <button onClick={handleContactOfficial} className="flex items-center gap-2 w-full text-left">
           <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
             <span className="text-sm font-bold text-secondary-foreground">R</span>
@@ -229,17 +199,16 @@ const HomePage = () => {
               <span className="text-sm font-bold text-foreground">Rosy Official</span>
               <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
             </div>
-            <p className="text-[10px] text-muted-foreground">Kirim pesan langsung</p>
+            <p className="text-[10px] text-muted-foreground">{t("home.send_message")}</p>
           </div>
           <MessageCircle className="w-5 h-5 text-primary" />
         </button>
       </div>
 
-      {/* Footer */}
       <div className="text-center py-4 text-muted-foreground text-xs space-y-1">
         <div className="flex items-center justify-center gap-1">
           <Leaf className="w-3 h-3" />
-          <span className="font-semibold">Reduce • Reuse • Recycle</span>
+          <span className="font-semibold">{t("footer.tagline")}</span>
         </div>
         <p>Developed by @4anakmasadepan</p>
       </div>

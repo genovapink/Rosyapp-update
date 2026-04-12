@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Settings, LogOut, History, ShoppingBag, Scan, Recycle, Star, ChevronRight, Megaphone, Edit2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
