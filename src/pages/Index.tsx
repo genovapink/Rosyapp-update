@@ -71,7 +71,10 @@ const HomePage = () => {
           <img src={rosiLogo} alt="Rosy Logo" className="w-10 h-10" />
           <h1 className="text-2xl font-extrabold text-foreground">Rosy</h1>
         </div>
-        {user && <p className="text-xs text-muted-foreground">{t("home.hi")}, {profile?.nickname || "User"}!</p>}
+        <div className="flex items-center gap-2">
+          {user && <p className="text-xs text-muted-foreground">{t("home.hi")}, {profile?.nickname || "User"}!</p>}
+          <LanguageMenu />
+        </div>
       </div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
