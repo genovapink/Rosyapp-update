@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { BookOpen, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import rosyBook from "@/assets/rosy-book.png";
 
 const RosyCoursePage = () => {
   const navigate = useNavigate();
@@ -16,9 +17,13 @@ const RosyCoursePage = () => {
         animate={{ opacity: 1, scale: 1 }}
         className="flex flex-col items-center gap-4 text-center"
       >
-        <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center">
-          <BookOpen className="w-10 h-10 text-primary" />
-        </div>
+        <motion.img
+          src={rosyBook}
+          alt="Rosy reading book"
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="w-32 h-32 object-contain drop-shadow-md"
+        />
         <h1 className="text-3xl font-extrabold text-foreground">COMING SOON!</h1>
         <p className="text-muted-foreground text-sm max-w-xs">
           Trash Lesson sedang dalam pengembangan. Segera kamu bisa belajar mengolah sampahmu dan mendapatkan Rosy Poin! 🌱

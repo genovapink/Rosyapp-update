@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight, BookOpen, ChevronLeft, ChevronRight, BadgeCheck, MessageCircle } from "lucide-react";
 import LanguageMenu from "@/components/LanguageMenu";
 import rosiLogo from "@/assets/rosi-logo.png";
+import rosyRecycle from "@/assets/rosy-recycle.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -163,7 +164,16 @@ const HomePage = () => {
       </div>
 
       <div>
-        <h3 className="text-lg font-bold text-foreground mb-3">{t("home.categories.title")}</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold text-foreground">{t("home.categories.title")}</h3>
+          <motion.img
+            src={rosyRecycle}
+            alt="Rosy recycle"
+            animate={{ rotate: [0, -5, 5, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            className="w-14 h-14 object-contain drop-shadow"
+          />
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {categories.map((cat, i) => (
             <motion.div key={cat.name} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 * i }}

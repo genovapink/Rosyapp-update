@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Home, ShoppingBag, MessageCircle, User, Scan } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/contexts/LanguageContext";
+import rosyHead from "@/assets/rosy-head.png";
 
 const BottomNav = () => {
   const location = useLocation();
@@ -26,6 +27,14 @@ const BottomNav = () => {
           if (item.center) {
             return (
               <button key={item.path} onClick={() => navigate(item.path)} className="relative -mt-5 flex flex-col items-center">
+                <motion.img
+                  src={rosyHead}
+                  alt="Rosy"
+                  initial={{ y: 4 }}
+                  animate={{ y: [4, -2, 4] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -top-7 w-9 h-9 object-contain pointer-events-none select-none drop-shadow"
+                />
                 <motion.div whileTap={{ scale: 0.9 }}
                   className={`w-14 h-14 rounded-full rosi-gradient flex items-center justify-center shadow-lg ${isActive ? "animate-pulse-green" : ""}`}>
                   <Icon className="w-7 h-7 text-primary-foreground" />
