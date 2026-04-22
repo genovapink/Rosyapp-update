@@ -4,6 +4,8 @@ import { Scan, ShoppingBag, Leaf, Recycle, TrendingUp, ArrowRight, BookOpen, Che
 import LanguageMenu from "@/components/LanguageMenu";
 import rosiLogo from "@/assets/rosi-logo.png";
 import rosyRecycle from "@/assets/rosy-recycle.png";
+import rosyTrioBg from "@/assets/rosy-trio-bg.png";
+import rosyBook from "@/assets/rosy-book.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -79,11 +81,11 @@ const HomePage = () => {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="rosi-gradient rounded-2xl p-6 text-primary-foreground relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(110_40%_50%/0.3)] rounded-full -translate-y-8 translate-x-8" />
-        <div className="absolute bottom-0 left-0 w-20 h-20 bg-[hsl(110_40%_50%/0.2)] rounded-full translate-y-6 -translate-x-6" />
+        className="rounded-2xl p-6 text-primary-foreground relative overflow-hidden min-h-[200px]">
+        <img src={rosyTrioBg} alt="Rosy characters" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/85 via-primary/55 to-transparent" />
         <div className="relative z-10">
-          <h2 className="text-xl font-extrabold leading-tight mb-2 whitespace-pre-line">{t("home.hero.title")}</h2>
+          <h2 className="text-xl font-extrabold leading-tight mb-2 whitespace-pre-line">{t("home.hero.title").replace(/🌍|🌎|🌏/g, "").trim()}</h2>
           <p className="text-sm opacity-90 mb-4">{t("home.hero.subtitle")}</p>
           <button onClick={() => navigate("/scan")}
             className="bg-card text-primary font-bold px-6 py-2.5 rounded-full text-sm flex items-center gap-2 shadow-md">
@@ -95,8 +97,8 @@ const HomePage = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
         onClick={() => navigate("/rosycourse")}
         className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow relative">
-        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
-          <BookOpen className="w-5 h-5 text-primary" />
+        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <img src={rosyBook} alt="Trash Lesson" className="w-9 h-9 object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
