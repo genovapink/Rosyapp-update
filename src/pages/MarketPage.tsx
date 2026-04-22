@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, Filter, MapPin, X, Upload, ArrowLeft, Heart, Edit2, Trash2 } from "lucide-react";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import rosyLeaf from "@/assets/rosy-leaf.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +21,8 @@ interface MarketItem {
   user_id: string;
   created_at: string;
   seller_nickname?: string;
+  seller_is_premium?: boolean;
+  seller_is_official?: boolean;
 }
 
 const wasteTypes = ["Semua", "Plastik", "Kaca", "Kertas", "Logam", "Organik", "Elektronik"];
@@ -105,15 +108,20 @@ const MarketPage = () => {
     const userIds = [...new Set((data as any[]).map((d: any) => d.user_id))];
     let profiles: any[] = [];
     if (userIds.length > 0) {
-      const { data: p } = await supabase.from("profiles" as any).select("user_id, nickname").in("user_id", userIds);
+      const { data: p } = await supabase.from("profiles" as any).select("user_id, nickname, is_premium, is_official").in("user_id", userIds);
       profiles = (p || []) as any[];
     }
 
-    setItems((data as any[]).map((item: any) => ({
-      ...item,
-      image_urls: item.image_urls || [],
-      seller_nickname: profiles.find((p: any) => p.user_id === item.user_id)?.nickname || "User",
-    })));
+    setItems((data as any[]).map((item: any) => {
+      const sp = profiles.find((p: any) => p.user_id === item.user_id);
+      return {
+        ...item,
+        image_urls: item.image_urls || [],
+        seller_nickname: sp?.nickname || "User",
+        seller_is_premium: sp?.is_premium || false,
+        seller_is_official: sp?.is_official || false,
+      };
+    }));
     setLoading(false);
   };
 
