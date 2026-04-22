@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, Filter, MapPin, X, Upload, ArrowLeft, Heart, Edit2, Trash2 } from "lucide-react";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import rosyLeaf from "@/assets/rosy-leaf.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUsageLimits, POINTS_PER_LISTING } from "@/hooks/useUsageLimits";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -19,6 +21,8 @@ interface MarketItem {
   user_id: string;
   created_at: string;
   seller_nickname?: string;
+  seller_is_premium?: boolean;
+  seller_is_official?: boolean;
 }
 
 const wasteTypes = ["Semua", "Plastik", "Kaca", "Kertas", "Logam", "Organik", "Elektronik"];
@@ -46,6 +50,7 @@ const MarketPage = () => {
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const { user } = useAuth();
+  const { checkListingAllowed, incrementCounter, awardPoints, isPremium } = useUsageLimits();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -103,15 +108,20 @@ const MarketPage = () => {
     const userIds = [...new Set((data as any[]).map((d: any) => d.user_id))];
     let profiles: any[] = [];
     if (userIds.length > 0) {
-      const { data: p } = await supabase.from("profiles" as any).select("user_id, nickname").in("user_id", userIds);
+      const { data: p } = await supabase.from("profiles" as any).select("user_id, nickname, is_premium, is_official").in("user_id", userIds);
       profiles = (p || []) as any[];
     }
 
-    setItems((data as any[]).map((item: any) => ({
-      ...item,
-      image_urls: item.image_urls || [],
-      seller_nickname: profiles.find((p: any) => p.user_id === item.user_id)?.nickname || "User",
-    })));
+    setItems((data as any[]).map((item: any) => {
+      const sp = profiles.find((p: any) => p.user_id === item.user_id);
+      return {
+        ...item,
+        image_urls: item.image_urls || [],
+        seller_nickname: sp?.nickname || "User",
+        seller_is_premium: sp?.is_premium || false,
+        seller_is_official: sp?.is_official || false,
+      };
+    }));
     setLoading(false);
   };
 
@@ -132,6 +142,17 @@ const MarketPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { toast.error("Silakan login terlebih dahulu"); navigate("/auth"); return; }
+
+    // Check monthly listing cap (only for new listings, not edits)
+    if (!editingItem) {
+      const limitCheck = await checkListingAllowed();
+      if (!limitCheck.allowed) {
+        toast.error(`Limit listing bulanan tercapai (${limitCheck.used}/${limitCheck.max}). ${isPremium ? "" : "Upgrade ke Premium untuk 10 listing/bulan."}`);
+        if (!isPremium) navigate("/premium");
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const uploadedUrls: string[] = [];
@@ -166,7 +187,9 @@ const MarketPage = () => {
           scan_result_id: searchParams.get("scan_id") || null,
         } as any);
         if (error) throw error;
-        toast.success("Listing berhasil dibuat!");
+        await incrementCounter("listings_count");
+        await awardPoints(POINTS_PER_LISTING);
+        toast.success(`Listing dibuat! +${POINTS_PER_LISTING} Rosy Points 🎉`);
       }
 
       setShowNewListing(false);
@@ -255,7 +278,11 @@ const MarketPage = () => {
           </div>
           {selectedItem.location && <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{selectedItem.location}</p>}
           {selectedItem.description && <p className="text-sm text-foreground">{selectedItem.description}</p>}
-          <p className="text-xs text-muted-foreground">Dijual oleh: {selectedItem.seller_nickname}</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            Dijual oleh: <span className="font-semibold text-foreground">{selectedItem.seller_nickname}</span>
+            {selectedItem.seller_is_official && <VerifiedBadge variant="official" className="w-3.5 h-3.5" />}
+            {!selectedItem.seller_is_official && selectedItem.seller_is_premium && <VerifiedBadge variant="premium" className="w-3.5 h-3.5" />}
+          </p>
 
           {isOwner ? (
             <div className="grid grid-cols-2 gap-3">
@@ -397,7 +424,11 @@ const MarketPage = () => {
                   <p className="text-sm font-bold text-foreground truncate">{item.title}</p>
                   <p className="text-xs text-muted-foreground">{item.waste_type} {item.weight_kg ? `• ${item.weight_kg}kg` : ""}</p>
                   <p className="text-sm font-extrabold text-primary mt-1">Rp {item.price.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">{item.seller_nickname}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-0.5">
+                    {item.seller_nickname}
+                    {item.seller_is_official && <VerifiedBadge variant="official" className="w-3 h-3" />}
+                    {!item.seller_is_official && item.seller_is_premium && <VerifiedBadge variant="premium" className="w-3 h-3" />}
+                  </p>
                 </div>
               </motion.button>
             ))}

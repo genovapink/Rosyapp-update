@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Camera, X, Leaf, ArrowRight, Check, Upload, RotateCcw, Share2, Twitter, Shuffle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUsageLimits, POINTS_PER_SCAN } from "@/hooks/useUsageLimits";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -36,6 +37,7 @@ const ScanWastePage = () => {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, refreshProfile } = useAuth();
+  const { checkScanAllowed, incrementCounter, awardPoints, isPremium, limits } = useUsageLimits();
   const navigate = useNavigate();
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,6 +83,14 @@ const ScanWastePage = () => {
     }
     if (!capturedImage || !selectedCategory) return;
 
+    // Check monthly scan limit
+    const limitCheck = await checkScanAllowed();
+    if (!limitCheck.allowed) {
+      toast.error(`Limit scan bulanan tercapai (${limitCheck.used}/${limitCheck.max}). ${isPremium ? "" : "Upgrade ke Premium untuk 100 scan/bulan."}`);
+      if (!isPremium) navigate("/premium");
+      return;
+    }
+
     const analysisCategory = selectedCategory === "random"
       ? categories.filter(c => c.id !== "random")[Math.floor(Math.random() * (categories.length - 1))].id
       : selectedCategory;
@@ -124,6 +134,11 @@ const ScanWastePage = () => {
         } as any)
         .eq("user_id", user.id);
 
+      // Increment counter & award point
+      await incrementCounter("scans_count");
+      await awardPoints(POINTS_PER_SCAN);
+      toast.success(`+${POINTS_PER_SCAN} Rosy Point!`);
+
       await refreshProfile();
       setCurrentStep(2);
     } catch (err: any) {
@@ -132,7 +147,7 @@ const ScanWastePage = () => {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [capturedImage, selectedCategory, user]);
+  }, [capturedImage, selectedCategory, user, checkScanAllowed, incrementCounter, awardPoints, isPremium]);
 
   const shareToTwitter = () => {
     if (!result) return;

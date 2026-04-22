@@ -1,20 +1,26 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Settings, LogOut, History, ShoppingBag, Scan, Recycle, Star, ChevronRight, Megaphone, Edit2, X } from "lucide-react";
+import { Settings, LogOut, History, ShoppingBag, Scan, Recycle, Star, ChevronRight, Megaphone, Edit2, X, Crown, Gift, Camera, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { useUsageLimits, FREE_LIMITS, PREMIUM_LIMITS } from "@/hooks/useUsageLimits";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 const ProfilePage = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
+  const { isPremium, getUsage, limits } = useUsageLimits();
   const navigate = useNavigate();
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [nickname, setNickname] = useState("");
   const [phone, setPhone] = useState("");
   const [scanHistory, setScanHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [usage, setUsage] = useState({ scans_count: 0, listings_count: 0 });
+  const [warnings, setWarnings] = useState<any[]>([]);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile) {
@@ -24,12 +30,49 @@ const ProfilePage = () => {
   }, [profile]);
 
   useEffect(() => {
+    if (user) {
+      getUsage().then(setUsage);
+      supabase.from("warnings" as any).select("*").eq("user_id", user.id).eq("acknowledged", false).then(({ data }) => {
+        setWarnings((data || []) as any[]);
+      });
+    }
+  }, [user, getUsage]);
+
+  useEffect(() => {
     if (user && showHistory) {
       supabase.from("scan_results").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).then(({ data }) => {
         setScanHistory((data || []) as any[]);
       });
     }
   }, [user, showHistory]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    if (!isPremium) { toast.error("Upload foto profil hanya untuk Premium"); navigate("/premium"); return; }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Maks 5 MB"); return; }
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      await supabase.from("profiles").update({ avatar_url: urlData.publicUrl } as any).eq("user_id", user.id);
+      await refreshProfile();
+      toast.success("Foto profil diperbarui!");
+    } catch (err: any) {
+      toast.error(err.message || "Gagal upload");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const acknowledgeWarning = async (id: string) => {
+    await supabase.from("warnings" as any).update({ acknowledged: true } as any).eq("id", id);
+    setWarnings((w) => w.filter((x) => x.id !== id));
+  };
 
   const handleUpdateProfile = async () => {
     if (!user) return;
@@ -90,19 +133,56 @@ const ProfilePage = () => {
   }
 
   return (
-    <div className="px-4 pt-6 space-y-6">
+    <div className="px-4 pt-6 space-y-6 pb-6">
+      {/* Warnings */}
+      {warnings.map((w) => (
+        <div key={w.id} className="bg-destructive/10 border border-destructive/40 rounded-xl p-3 flex gap-3 items-start">
+          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-destructive">Peringatan Admin</p>
+            <p className="text-xs text-foreground">{w.message}</p>
+          </div>
+          <button onClick={() => acknowledgeWarning(w.id)} className="text-xs font-bold text-destructive">OK</button>
+        </div>
+      ))}
+
       {/* Avatar & Info */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center relative">
         <button onClick={() => setShowEditProfile(true)} className="absolute top-0 right-0">
           <Edit2 className="w-4 h-4 text-muted-foreground" />
         </button>
-        <div className="w-20 h-20 rounded-full bg-muted border-4 border-primary/20 flex items-center justify-center">
-          <span className="text-2xl font-bold text-muted-foreground">
-            {(profile?.nickname || "U")[0].toUpperCase()}
-          </span>
+
+        <div className="relative">
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="avatar" className="w-20 h-20 rounded-full object-cover border-4 border-primary/20" />
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-muted border-4 border-primary/20 flex items-center justify-center">
+              <span className="text-2xl font-bold text-muted-foreground">
+                {(profile?.nickname || "U")[0].toUpperCase()}
+              </span>
+            </div>
+          )}
+          <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+          <button
+            onClick={() => isPremium ? avatarInputRef.current?.click() : navigate("/premium")}
+            disabled={uploadingAvatar}
+            className="absolute -bottom-1 -right-1 w-7 h-7 rosi-gradient rounded-full flex items-center justify-center shadow-md"
+          >
+            <Camera className="w-3.5 h-3.5 text-primary-foreground" />
+          </button>
         </div>
-        <h2 className="text-xl font-extrabold text-foreground mt-3">{profile?.nickname || "User"}</h2>
+
+        <div className="flex items-center gap-1.5 mt-3">
+          <h2 className="text-xl font-extrabold text-foreground">{profile?.nickname || "User"}</h2>
+          {profile?.is_official && <VerifiedBadge variant="official" className="w-5 h-5" />}
+          {!profile?.is_official && isPremium && <VerifiedBadge variant="premium" className="w-5 h-5" />}
+        </div>
         <p className="text-sm text-muted-foreground">{user.email}</p>
+        {isPremium && (
+          <span className="mt-1 inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-yellow-500/15 text-yellow-700 text-[10px] font-bold">
+            <Crown className="w-3 h-3" /> PREMIUM
+          </span>
+        )}
       </motion.div>
 
       {/* Stats */}
@@ -115,6 +195,40 @@ const ProfilePage = () => {
           <p className="text-lg font-extrabold text-primary">Level {profile?.level || 1}</p>
           <p className="text-[10px] font-bold text-muted-foreground">RECYCLER</p>
         </div>
+      </div>
+
+      {/* Monthly usage */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-foreground">Pemakaian Bulan Ini</h3>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isPremium ? "bg-yellow-500/15 text-yellow-700" : "bg-muted text-muted-foreground"}`}>
+            {isPremium ? "PREMIUM" : "FREE"}
+          </span>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Scan</span><span>{usage.scans_count} / {limits.scans}</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+              <div className="h-full rosi-gradient" style={{ width: `${Math.min(100, (usage.scans_count / limits.scans) * 100)}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Listing</span><span>{usage.listings_count} / {limits.listings}</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+              <div className="h-full rosi-gradient" style={{ width: `${Math.min(100, (usage.listings_count / limits.listings) * 100)}%` }} />
+            </div>
+          </div>
+        </div>
+        {!isPremium && (
+          <button onClick={() => navigate("/premium")}
+            className="w-full mt-2 rosi-gradient text-primary-foreground py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
+            <Crown className="w-3.5 h-3.5" /> Upgrade ke Premium
+          </button>
+        )}
       </div>
 
       {/* Statistics */}
@@ -140,6 +254,27 @@ const ProfilePage = () => {
       {/* Menu */}
       <div className="space-y-1">
         <h3 className="font-bold text-foreground mb-2">Account</h3>
+
+        <button onClick={() => navigate("/premium")}
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
+          <Crown className="w-5 h-5 text-yellow-500" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Rosy Premium</p>
+            <p className="text-xs text-muted-foreground">{isPremium ? "Aktif" : "Upgrade untuk benefit lebih"}</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
+
+        <button onClick={() => navigate("/redeem")}
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
+          <Gift className="w-5 h-5 text-primary" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Redeem Reward</p>
+            <p className="text-xs text-muted-foreground">Tukar poin dengan voucher</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
+
         <button onClick={() => navigate("/advertise")}
           className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
           <Megaphone className="w-5 h-5 text-muted-foreground" />

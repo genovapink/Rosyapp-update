@@ -1,17 +1,21 @@
 import { useState } from "react";
-import { Menu, Globe, X } from "lucide-react";
+import { Menu, Globe, X, Gift, Crown } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 const LanguageMenu = () => {
   const [open, setOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
+  const navigate = useNavigate();
 
   const languages = [
     { code: "id" as const, label: "🇮🇩 Bahasa Indonesia" },
     { code: "en" as const, label: "🇬🇧 English" },
     { code: "zh" as const, label: "🇨🇳 中文 (Mandarin)" },
   ];
+
+  const go = (path: string) => { setOpen(false); navigate(path); };
 
   return (
     <>
@@ -27,17 +31,32 @@ const LanguageMenu = () => {
             <motion.div
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed top-0 right-0 h-full w-72 bg-card border-l border-border z-50 p-6 space-y-6"
+              className="fixed top-0 right-0 h-full w-72 bg-card border-l border-border z-50 p-6 space-y-6 overflow-y-auto"
             >
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-extrabold text-foreground flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-primary" /> {t("lang.title")}
-                </h3>
+                <h3 className="text-lg font-extrabold text-foreground">Menu</h3>
                 <button onClick={() => setOpen(false)}>
                   <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
+
               <div className="space-y-2">
+                <button onClick={() => go("/redeem")}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-muted text-foreground hover:bg-muted/80">
+                  <Gift className="w-5 h-5 text-primary" />
+                  <span className="text-sm font-semibold flex-1 text-left">Redeem Reward</span>
+                </button>
+                <button onClick={() => go("/premium")}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-muted text-foreground hover:bg-muted/80">
+                  <Crown className="w-5 h-5 text-yellow-500" />
+                  <span className="text-sm font-semibold flex-1 text-left">Rosy Premium</span>
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
+                  <Globe className="w-4 h-4" /> {t("lang.title")}
+                </h4>
                 {languages.map((lang) => (
                   <button
                     key={lang.code}
