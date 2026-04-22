@@ -12,6 +12,10 @@ interface Profile {
   total_recycled_kg: number;
   points: number;
   level: number;
+  is_premium?: boolean;
+  premium_until?: string | null;
+  is_official?: boolean;
+  is_banned?: boolean;
 }
 
 interface AuthContextType {
