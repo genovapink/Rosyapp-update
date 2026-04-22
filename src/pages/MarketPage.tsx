@@ -4,6 +4,7 @@ import { Plus, Search, Filter, MapPin, X, Upload, ArrowLeft, Heart, Edit2, Trash
 import rosyLeaf from "@/assets/rosy-leaf.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUsageLimits, POINTS_PER_LISTING } from "@/hooks/useUsageLimits";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -46,6 +47,7 @@ const MarketPage = () => {
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const { user } = useAuth();
+  const { checkListingAllowed, incrementCounter, awardPoints, isPremium } = useUsageLimits();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -132,6 +134,17 @@ const MarketPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { toast.error("Silakan login terlebih dahulu"); navigate("/auth"); return; }
+
+    // Check monthly listing cap (only for new listings, not edits)
+    if (!editingItem) {
+      const limitCheck = await checkListingAllowed();
+      if (!limitCheck.allowed) {
+        toast.error(`Limit listing bulanan tercapai (${limitCheck.used}/${limitCheck.max}). ${isPremium ? "" : "Upgrade ke Premium untuk 10 listing/bulan."}`);
+        if (!isPremium) navigate("/premium");
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const uploadedUrls: string[] = [];
@@ -166,7 +179,9 @@ const MarketPage = () => {
           scan_result_id: searchParams.get("scan_id") || null,
         } as any);
         if (error) throw error;
-        toast.success("Listing berhasil dibuat!");
+        await incrementCounter("listings_count");
+        await awardPoints(POINTS_PER_LISTING);
+        toast.success(`Listing dibuat! +${POINTS_PER_LISTING} Rosy Points 🎉`);
       }
 
       setShowNewListing(false);
