@@ -17,6 +17,8 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import RosyCoursePage from "./pages/RosyCoursePage";
 import AdvertisePage from "./pages/AdvertisePage";
 import AdminPage from "./pages/AdminPage";
+import RedeemPage from "./pages/RedeemPage";
+import PremiumPage from "./pages/PremiumPage";
 import NotFound from "./pages/NotFound";
 import IntroAnimation from "./components/IntroAnimation";
 
@@ -45,6 +47,8 @@ const App = () => {
                 <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
                 <Route path="/rosycourse" element={<Layout><RosyCoursePage /></Layout>} />
                 <Route path="/advertise" element={<Layout><AdvertisePage /></Layout>} />
+                <Route path="/redeem" element={<Layout><RedeemPage /></Layout>} />
+                <Route path="/premium" element={<Layout><PremiumPage /></Layout>} />
                 <Route path="/adminros" element={<AdminPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
