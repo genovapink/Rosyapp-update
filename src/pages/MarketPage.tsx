@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, Filter, MapPin, X, Upload, ArrowLeft, Heart, Edit2, Trash2 } from "lucide-react";
+import rosyLeaf from "@/assets/rosy-leaf.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -331,9 +332,12 @@ const MarketPage = () => {
   return (
     <div className="px-4 pt-6 space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold text-foreground">Marketplace</h1>
-          <p className="text-sm text-muted-foreground">Jual beli sampah bernilai</p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h1 className="text-2xl font-extrabold text-foreground">Marketplace</h1>
+            <p className="text-sm text-muted-foreground">Jual beli sampah bernilai</p>
+          </div>
+          <img src={rosyLeaf} alt="Rosy leaf" className="w-12 h-12 object-contain drop-shadow-sm" />
         </div>
         <button onClick={() => { if (!user) { navigate("/auth"); return; } setShowNewListing(true); }}
           className="w-10 h-10 rosi-gradient rounded-full flex items-center justify-center shadow-md">
