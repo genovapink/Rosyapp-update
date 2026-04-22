@@ -278,7 +278,11 @@ const MarketPage = () => {
           </div>
           {selectedItem.location && <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{selectedItem.location}</p>}
           {selectedItem.description && <p className="text-sm text-foreground">{selectedItem.description}</p>}
-          <p className="text-xs text-muted-foreground">Dijual oleh: {selectedItem.seller_nickname}</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            Dijual oleh: <span className="font-semibold text-foreground">{selectedItem.seller_nickname}</span>
+            {selectedItem.seller_is_official && <VerifiedBadge variant="official" className="w-3.5 h-3.5" />}
+            {!selectedItem.seller_is_official && selectedItem.seller_is_premium && <VerifiedBadge variant="premium" className="w-3.5 h-3.5" />}
+          </p>
 
           {isOwner ? (
             <div className="grid grid-cols-2 gap-3">
@@ -420,7 +424,11 @@ const MarketPage = () => {
                   <p className="text-sm font-bold text-foreground truncate">{item.title}</p>
                   <p className="text-xs text-muted-foreground">{item.waste_type} {item.weight_kg ? `• ${item.weight_kg}kg` : ""}</p>
                   <p className="text-sm font-extrabold text-primary mt-1">Rp {item.price.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">{item.seller_nickname}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-0.5">
+                    {item.seller_nickname}
+                    {item.seller_is_official && <VerifiedBadge variant="official" className="w-3 h-3" />}
+                    {!item.seller_is_official && item.seller_is_premium && <VerifiedBadge variant="premium" className="w-3 h-3" />}
+                  </p>
                 </div>
               </motion.button>
             ))}
