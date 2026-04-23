@@ -128,7 +128,13 @@ const HomePage = () => {
             <AnimatePresence mode="wait">
               <motion.div key={adIndex} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.3 }}>
                 {activeAds[adIndex].image_url && (
-                  <img src={activeAds[adIndex].image_url} alt={activeAds[adIndex].title} className="w-full h-40 object-cover" />
+                  activeAds[adIndex].link_url ? (
+                    <a href={activeAds[adIndex].link_url} target="_blank" rel="noopener noreferrer" className="block">
+                      <img src={activeAds[adIndex].image_url} alt={activeAds[adIndex].title} className="w-full h-40 object-cover cursor-pointer hover:opacity-90 transition" />
+                    </a>
+                  ) : (
+                    <img src={activeAds[adIndex].image_url} alt={activeAds[adIndex].title} className="w-full h-40 object-cover" />
+                  )
                 )}
                 <div className="p-3">
                   <div className="flex items-center gap-2">
