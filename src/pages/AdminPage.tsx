@@ -503,6 +503,39 @@ const AdminPage = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Promotion Form Modal */}
+      {showPromoForm && (
+        <div className="fixed inset-0 z-50 bg-foreground/60 flex items-center justify-center px-4 py-6 overflow-y-auto">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-card rounded-2xl p-6 w-full max-w-md space-y-3 my-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-primary" /> Tambah Iklan
+              </h3>
+              <button onClick={() => setShowPromoForm(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Iklan otomatis aktif selama 30 hari.</p>
+            <input value={promoForm.title} onChange={(e) => setPromoForm({ ...promoForm, title: e.target.value })} placeholder="Judul iklan"
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" />
+            <textarea value={promoForm.description} onChange={(e) => setPromoForm({ ...promoForm, description: e.target.value })} placeholder="Deskripsi (opsional)" rows={2}
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" />
+            <input value={promoForm.link_url} onChange={(e) => setPromoForm({ ...promoForm, link_url: e.target.value })} placeholder="Link tujuan (https://...)"
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" />
+            <label className="flex items-center justify-center gap-2 bg-background border border-border rounded-xl px-3 py-3 text-xs cursor-pointer text-foreground">
+              <Upload className="w-4 h-4" /> {promoImageFile ? promoImageFile.name.slice(0, 30) : "Upload Gambar Iklan"}
+              <input type="file" accept="image/*" onChange={(e) => setPromoImageFile(e.target.files?.[0] || null)} className="hidden" />
+            </label>
+            {promoImageFile && (
+              <img src={URL.createObjectURL(promoImageFile)} alt="preview" className="w-full h-32 object-cover rounded-lg" />
+            )}
+            <button onClick={submitPromotion} disabled={promoSubmitting}
+              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-60">
+              {promoSubmitting ? "Mengupload..." : "Buat Iklan (30 hari)"}
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
