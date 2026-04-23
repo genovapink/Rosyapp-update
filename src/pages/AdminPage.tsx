@@ -74,15 +74,6 @@ const AdminPage = () => {
     fetchData();
   };
 
-  // Promotions
-  const togglePromotionStatus = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === "active" ? "expired" : "active";
-    const { error } = await supabase.from("promotions").update({ status: newStatus } as any).eq("id", id);
-    if (error) { toast.error("Gagal"); return; }
-    toast.success(`Status: ${newStatus}`);
-    fetchData();
-  };
-
   const deletePromotion = async (id: string) => {
     if (!confirm("Hapus iklan ini permanen?")) return;
     const { error } = await supabase.from("promotions").delete().eq("id", id);
