@@ -74,6 +74,65 @@ const AdminPage = () => {
     fetchData();
   };
 
+  // Promotions
+  const togglePromotionStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "expired" : "active";
+    const { error } = await supabase.from("promotions").update({ status: newStatus } as any).eq("id", id);
+    if (error) { toast.error("Gagal"); return; }
+    toast.success(`Status: ${newStatus}`);
+    fetchData();
+  };
+
+  const deletePromotion = async (id: string) => {
+    if (!confirm("Hapus iklan ini permanen?")) return;
+    const { error } = await supabase.from("promotions").delete().eq("id", id);
+    if (error) { toast.error("Gagal hapus iklan"); return; }
+    toast.success("Iklan dihapus");
+    fetchData();
+  };
+
+  const uploadPromoImage = async (file: File): Promise<string | null> => {
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from("promotions").upload(fileName, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("promotions").getPublicUrl(fileName);
+      return urlData.publicUrl;
+    } catch (e: any) {
+      toast.error(e.message || "Upload gagal");
+      return null;
+    }
+  };
+
+  const submitPromotion = async () => {
+    if (!promoForm.title.trim()) { toast.error("Judul iklan wajib"); return; }
+    if (!promoImageFile) { toast.error("Gambar iklan wajib"); return; }
+    setPromoSubmitting(true);
+    const imageUrl = await uploadPromoImage(promoImageFile);
+    if (!imageUrl) { setPromoSubmitting(false); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    const startDate = new Date();
+    const endDate = new Date(Date.now() + 30 * 86400000);
+    const { error } = await supabase.from("promotions").insert({
+      title: promoForm.title,
+      description: promoForm.description || null,
+      link_url: promoForm.link_url || null,
+      image_url: imageUrl,
+      payment_method: "admin",
+      status: "active",
+      start_date: startDate.toISOString(),
+      end_date: endDate.toISOString(),
+      user_id: user?.id,
+    } as any);
+    setPromoSubmitting(false);
+    if (error) { toast.error("Gagal membuat iklan: " + error.message); return; }
+    toast.success("Iklan dibuat (aktif 30 hari)");
+    setShowPromoForm(false);
+    setPromoForm({ title: "", description: "", link_url: "" });
+    setPromoImageFile(null);
+    fetchData();
+  };
+
   // Listings
   const deleteListing = async (id: string) => {
     if (!confirm("Hapus listing ini permanen?")) return;
