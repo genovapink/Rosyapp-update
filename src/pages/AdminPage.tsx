@@ -27,6 +27,14 @@ const AdminPage = () => {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
 
+  // Promotion form
+  const [showPromoForm, setShowPromoForm] = useState(false);
+  const [promoForm, setPromoForm] = useState({
+    title: "", description: "", link_url: "",
+  });
+  const [promoImageFile, setPromoImageFile] = useState<File | null>(null);
+  const [promoSubmitting, setPromoSubmitting] = useState(false);
+
   // Warn modal
   const [warnTarget, setWarnTarget] = useState<any>(null);
   const [warnMessage, setWarnMessage] = useState("");
