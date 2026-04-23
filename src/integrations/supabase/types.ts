@@ -263,6 +263,7 @@ export type Database = {
           end_date: string | null
           id: string
           image_url: string | null
+          link_url: string | null
           payment_method: string
           start_date: string | null
           status: string
@@ -277,6 +278,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           image_url?: string | null
+          link_url?: string | null
           payment_method?: string
           start_date?: string | null
           status?: string
@@ -291,6 +293,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           image_url?: string | null
+          link_url?: string | null
           payment_method?: string
           start_date?: string | null
           status?: string

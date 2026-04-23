@@ -27,6 +27,14 @@ const AdminPage = () => {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
 
+  // Promotion form
+  const [showPromoForm, setShowPromoForm] = useState(false);
+  const [promoForm, setPromoForm] = useState({
+    title: "", description: "", link_url: "",
+  });
+  const [promoImageFile, setPromoImageFile] = useState<File | null>(null);
+  const [promoSubmitting, setPromoSubmitting] = useState(false);
+
   // Warn modal
   const [warnTarget, setWarnTarget] = useState<any>(null);
   const [warnMessage, setWarnMessage] = useState("");
@@ -63,6 +71,56 @@ const AdminPage = () => {
     const { error } = await supabase.from("promotions").update({ status: newStatus } as any).eq("id", id);
     if (error) { toast.error("Gagal"); return; }
     toast.success(`Status: ${newStatus}`);
+    fetchData();
+  };
+
+  const deletePromotion = async (id: string) => {
+    if (!confirm("Hapus iklan ini permanen?")) return;
+    const { error } = await supabase.from("promotions").delete().eq("id", id);
+    if (error) { toast.error("Gagal hapus iklan"); return; }
+    toast.success("Iklan dihapus");
+    fetchData();
+  };
+
+  const uploadPromoImage = async (file: File): Promise<string | null> => {
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from("promotions").upload(fileName, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("promotions").getPublicUrl(fileName);
+      return urlData.publicUrl;
+    } catch (e: any) {
+      toast.error(e.message || "Upload gagal");
+      return null;
+    }
+  };
+
+  const submitPromotion = async () => {
+    if (!promoForm.title.trim()) { toast.error("Judul iklan wajib"); return; }
+    if (!promoImageFile) { toast.error("Gambar iklan wajib"); return; }
+    setPromoSubmitting(true);
+    const imageUrl = await uploadPromoImage(promoImageFile);
+    if (!imageUrl) { setPromoSubmitting(false); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    const startDate = new Date();
+    const endDate = new Date(Date.now() + 30 * 86400000);
+    const { error } = await supabase.from("promotions").insert({
+      title: promoForm.title,
+      description: promoForm.description || null,
+      link_url: promoForm.link_url || null,
+      image_url: imageUrl,
+      payment_method: "admin",
+      status: "active",
+      start_date: startDate.toISOString(),
+      end_date: endDate.toISOString(),
+      user_id: user?.id,
+    } as any);
+    setPromoSubmitting(false);
+    if (error) { toast.error("Gagal membuat iklan: " + error.message); return; }
+    toast.success("Iklan dibuat (aktif 30 hari)");
+    setShowPromoForm(false);
+    setPromoForm({ title: "", description: "", link_url: "" });
+    setPromoImageFile(null);
     fetchData();
   };
 
@@ -235,29 +293,53 @@ const AdminPage = () => {
         {/* Promotions */}
         {activeTab === "promotions" && (
           <div className="space-y-3">
+            <button onClick={() => setShowPromoForm(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl rosi-gradient text-primary-foreground text-sm font-bold">
+              <Plus className="w-4 h-4" /> Tambah Iklan
+            </button>
             {promotions.length === 0 ? <p className="text-center py-10 text-muted-foreground text-sm">Belum ada iklan</p>
-            : promotions.map((promo) => (
+            : promotions.map((promo) => {
+              const daysLeft = promo.end_date
+                ? Math.max(0, Math.ceil((new Date(promo.end_date).getTime() - Date.now()) / 86400000))
+                : null;
+              return (
               <div key={promo.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
+                {promo.image_url && (
+                  <img src={promo.image_url} alt={promo.title} className="w-full h-32 object-cover rounded-lg" />
+                )}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-foreground">{promo.title}</p>
                     <p className="text-xs text-muted-foreground">{promo.description || "-"}</p>
                   </div>
-                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold whitespace-nowrap ${
                     promo.status === "active" ? "bg-green-100 text-green-700" :
                     promo.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
                   }`}>{promo.status}</span>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   <p>Method: {promo.payment_method}</p>
+                  {promo.link_url && <p className="truncate">🔗 {promo.link_url}</p>}
+                  {daysLeft !== null && (
+                    <p className={daysLeft <= 3 ? "text-destructive font-semibold" : ""}>
+                      ⏱ Sisa {daysLeft} hari
+                    </p>
+                  )}
                   {promo.tx_hash && <p>Tx: {promo.tx_hash.slice(0, 15)}...</p>}
                 </div>
-                <button onClick={() => togglePromotionStatus(promo.id, promo.status)}
-                  className="w-full flex items-center justify-center gap-1 py-2 rounded-lg bg-muted text-foreground text-xs font-bold">
-                  {promo.status === "active" ? <><EyeOff className="w-3 h-3" /> Nonaktifkan</> : <><Eye className="w-3 h-3" /> Aktifkan</>}
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => togglePromotionStatus(promo.id, promo.status)}
+                    className="flex items-center justify-center gap-1 py-2 rounded-lg bg-muted text-foreground text-xs font-bold">
+                    {promo.status === "active" ? <><EyeOff className="w-3 h-3" /> Nonaktifkan</> : <><Eye className="w-3 h-3" /> Aktifkan</>}
+                  </button>
+                  <button onClick={() => deletePromotion(promo.id)}
+                    className="flex items-center justify-center gap-1 py-2 rounded-lg bg-destructive/10 text-destructive text-xs font-bold">
+                    <Trash2 className="w-3 h-3" /> Hapus
+                  </button>
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -417,6 +499,39 @@ const AdminPage = () => {
             <button onClick={submitWarning}
               className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold text-sm">
               Kirim Peringatan
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Promotion Form Modal */}
+      {showPromoForm && (
+        <div className="fixed inset-0 z-50 bg-foreground/60 flex items-center justify-center px-4 py-6 overflow-y-auto">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-card rounded-2xl p-6 w-full max-w-md space-y-3 my-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-primary" /> Tambah Iklan
+              </h3>
+              <button onClick={() => setShowPromoForm(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Iklan otomatis aktif selama 30 hari.</p>
+            <input value={promoForm.title} onChange={(e) => setPromoForm({ ...promoForm, title: e.target.value })} placeholder="Judul iklan"
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" />
+            <textarea value={promoForm.description} onChange={(e) => setPromoForm({ ...promoForm, description: e.target.value })} placeholder="Deskripsi (opsional)" rows={2}
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" />
+            <input value={promoForm.link_url} onChange={(e) => setPromoForm({ ...promoForm, link_url: e.target.value })} placeholder="Link tujuan (https://...)"
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" />
+            <label className="flex items-center justify-center gap-2 bg-background border border-border rounded-xl px-3 py-3 text-xs cursor-pointer text-foreground">
+              <Upload className="w-4 h-4" /> {promoImageFile ? promoImageFile.name.slice(0, 30) : "Upload Gambar Iklan"}
+              <input type="file" accept="image/*" onChange={(e) => setPromoImageFile(e.target.files?.[0] || null)} className="hidden" />
+            </label>
+            {promoImageFile && (
+              <img src={URL.createObjectURL(promoImageFile)} alt="preview" className="w-full h-32 object-cover rounded-lg" />
+            )}
+            <button onClick={submitPromotion} disabled={promoSubmitting}
+              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-60">
+              {promoSubmitting ? "Mengupload..." : "Buat Iklan (30 hari)"}
             </button>
           </motion.div>
         </div>
