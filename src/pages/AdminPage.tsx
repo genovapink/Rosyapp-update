@@ -82,9 +82,17 @@ const AdminPage = () => {
     fetchData();
   };
 
+  const normalizeUrl = (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  };
+
   const uploadPromoImage = async (file: File): Promise<string | null> => {
     try {
-      const fileName = `${Date.now()}-${file.name}`;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Login admin dulu");
+      const fileName = `${user.id}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
       const { error } = await supabase.storage.from("promotions").upload(fileName, file);
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("promotions").getPublicUrl(fileName);
@@ -102,18 +110,19 @@ const AdminPage = () => {
     const imageUrl = await uploadPromoImage(promoImageFile);
     if (!imageUrl) { setPromoSubmitting(false); return; }
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast.error("Login admin dulu"); setPromoSubmitting(false); return; }
     const startDate = new Date();
     const endDate = new Date(Date.now() + 30 * 86400000);
     const { error } = await supabase.from("promotions").insert({
       title: promoForm.title,
       description: promoForm.description || null,
-      link_url: promoForm.link_url || null,
+      link_url: normalizeUrl(promoForm.link_url),
       image_url: imageUrl,
       payment_method: "admin",
       status: "active",
       start_date: startDate.toISOString(),
       end_date: endDate.toISOString(),
-      user_id: user?.id,
+      user_id: user.id,
     } as any);
     setPromoSubmitting(false);
     if (error) { toast.error("Gagal membuat iklan: " + error.message); return; }
@@ -171,7 +180,7 @@ const AdminPage = () => {
   // Rewards
   const handleImageUpload = async (file: File): Promise<string | null> => {
     try {
-      const fileName = `${Date.now()}-${file.name}`;
+      const fileName = `admin/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
       const { error } = await supabase.storage.from("rewards").upload(fileName, file);
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("rewards").getPublicUrl(fileName);
@@ -191,6 +200,7 @@ const AdminPage = () => {
     let imageUrl = rewardForm.image_url;
     if (imageFile) {
       const url = await handleImageUpload(imageFile);
+      if (!url) return;
       if (url) imageUrl = url;
     }
 
@@ -198,11 +208,15 @@ const AdminPage = () => {
       brand: rewardForm.brand, name: rewardForm.name, description: rewardForm.description,
       image_url: imageUrl, points_cost: rewardForm.points_cost, stock: codes.length, is_active: true,
     } as any).select().single();
-    if (error || !created) { toast.error("Gagal buat reward"); return; }
+    if (error || !created) { toast.error(error?.message || "Gagal buat reward"); return; }
 
     const codeRows = codes.map(code => ({ reward_id: (created as any).id, code }));
     const { error: codesErr } = await supabase.from("reward_codes" as any).insert(codeRows as any);
-    if (codesErr) { toast.error("Gagal upload kode"); return; }
+    if (codesErr) {
+      await supabase.from("rewards" as any).delete().eq("id", (created as any).id);
+      toast.error(codesErr.message || "Gagal upload kode");
+      return;
+    }
 
     toast.success(`Reward dibuat dengan ${codes.length} kode`);
     setShowRewardForm(false);
@@ -218,6 +232,7 @@ const AdminPage = () => {
 
   const deleteReward = async (id: string) => {
     if (!confirm("Hapus reward ini? Semua kode terkait juga ikut terhapus.")) return;
+    await supabase.from("reward_codes" as any).delete().eq("reward_id", id);
     await supabase.from("rewards" as any).delete().eq("id", id);
     toast.success("Reward dihapus");
     fetchData();
