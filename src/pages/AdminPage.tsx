@@ -82,9 +82,17 @@ const AdminPage = () => {
     fetchData();
   };
 
+  const normalizeUrl = (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  };
+
   const uploadPromoImage = async (file: File): Promise<string | null> => {
     try {
-      const fileName = `${Date.now()}-${file.name}`;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Login admin dulu");
+      const fileName = `${user.id}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
       const { error } = await supabase.storage.from("promotions").upload(fileName, file);
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("promotions").getPublicUrl(fileName);
@@ -102,18 +110,19 @@ const AdminPage = () => {
     const imageUrl = await uploadPromoImage(promoImageFile);
     if (!imageUrl) { setPromoSubmitting(false); return; }
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast.error("Login admin dulu"); setPromoSubmitting(false); return; }
     const startDate = new Date();
     const endDate = new Date(Date.now() + 30 * 86400000);
     const { error } = await supabase.from("promotions").insert({
       title: promoForm.title,
       description: promoForm.description || null,
-      link_url: promoForm.link_url || null,
+      link_url: normalizeUrl(promoForm.link_url),
       image_url: imageUrl,
       payment_method: "admin",
       status: "active",
       start_date: startDate.toISOString(),
       end_date: endDate.toISOString(),
-      user_id: user?.id,
+      user_id: user.id,
     } as any);
     setPromoSubmitting(false);
     if (error) { toast.error("Gagal membuat iklan: " + error.message); return; }
@@ -171,7 +180,7 @@ const AdminPage = () => {
   // Rewards
   const handleImageUpload = async (file: File): Promise<string | null> => {
     try {
-      const fileName = `${Date.now()}-${file.name}`;
+      const fileName = `admin/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
       const { error } = await supabase.storage.from("rewards").upload(fileName, file);
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("rewards").getPublicUrl(fileName);
