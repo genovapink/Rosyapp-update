@@ -207,11 +207,15 @@ const AdminPage = () => {
       brand: rewardForm.brand, name: rewardForm.name, description: rewardForm.description,
       image_url: imageUrl, points_cost: rewardForm.points_cost, stock: codes.length, is_active: true,
     } as any).select().single();
-    if (error || !created) { toast.error("Gagal buat reward"); return; }
+    if (error || !created) { toast.error(error?.message || "Gagal buat reward"); return; }
 
     const codeRows = codes.map(code => ({ reward_id: (created as any).id, code }));
     const { error: codesErr } = await supabase.from("reward_codes" as any).insert(codeRows as any);
-    if (codesErr) { toast.error("Gagal upload kode"); return; }
+    if (codesErr) {
+      await supabase.from("rewards" as any).delete().eq("id", (created as any).id);
+      toast.error(codesErr.message || "Gagal upload kode");
+      return;
+    }
 
     toast.success(`Reward dibuat dengan ${codes.length} kode`);
     setShowRewardForm(false);
@@ -227,6 +231,7 @@ const AdminPage = () => {
 
   const deleteReward = async (id: string) => {
     if (!confirm("Hapus reward ini? Semua kode terkait juga ikut terhapus.")) return;
+    await supabase.from("reward_codes" as any).delete().eq("reward_id", id);
     await supabase.from("rewards" as any).delete().eq("id", id);
     toast.success("Reward dihapus");
     fetchData();
