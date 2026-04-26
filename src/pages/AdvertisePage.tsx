@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import baseLogo from "@/assets/base-logo-blue.png";
 
 const WHATSAPP_NUMBER = "6288242150920";
 const USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -53,10 +54,10 @@ const AdvertisePage = () => {
 
   const uploadImage = async (): Promise<string | null> => {
     if (!imageFile || !user) return null;
-    const fileName = `promotions/${user.id}/${Date.now()}-${imageFile.name}`;
-    const { error } = await supabase.storage.from("waste-images").upload(fileName, imageFile);
+    const fileName = `${user.id}/${Date.now()}-${imageFile.name.replace(/\s+/g, "-")}`;
+    const { error } = await supabase.storage.from("promotions").upload(fileName, imageFile);
     if (error) throw error;
-    const { data } = supabase.storage.from("waste-images").getPublicUrl(fileName);
+    const { data } = supabase.storage.from("promotions").getPublicUrl(fileName);
     return data.publicUrl;
   };
 
@@ -190,9 +191,7 @@ const AdvertisePage = () => {
           </button>
           <button onClick={() => { setPaymentMethod("base"); checkDiscount(); }}
             className={`border-2 rounded-xl p-4 flex flex-col items-center gap-2 transition-all ${paymentMethod === "base" ? "border-primary rosi-shadow" : "border-border bg-card"}`}>
-            <div className="w-8 h-8 rounded bg-[#0052FF] flex items-center justify-center">
-              <span className="text-[10px] font-extrabold text-white">B</span>
-            </div>
+            <img src={baseLogo} alt="Base" className="w-8 h-8 rounded-full object-contain" />
             <span className="text-xs font-bold text-foreground flex items-center gap-1">
               <span className="font-extrabold text-foreground">Base</span> USDC
             </span>
@@ -213,7 +212,7 @@ const AdvertisePage = () => {
                 </div>
               ) : (
                 <button onClick={connectWallet}
-                  className="w-full bg-[#0052FF] text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                  className="w-full bg-rosi-blue text-primary-foreground py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
                   <Wallet className="w-4 h-4" /> {t("ad.connect_wallet")}
                 </button>
               )}
