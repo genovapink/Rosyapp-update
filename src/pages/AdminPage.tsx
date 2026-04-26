@@ -200,6 +200,7 @@ const AdminPage = () => {
     let imageUrl = rewardForm.image_url;
     if (imageFile) {
       const url = await handleImageUpload(imageFile);
+      if (!url) return;
       if (url) imageUrl = url;
     }
 
