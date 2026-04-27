@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Settings, LogOut, History, ShoppingBag, Scan, Recycle, Star, ChevronRight, Megaphone, Edit2, X, Crown, Gift, Camera, AlertTriangle } from "lucide-react";
+import { Settings, LogOut, History, ShoppingBag, Scan, Recycle, Star, ChevronRight, Megaphone, Edit2, X, Crown, Gift, Camera, AlertTriangle, Link, Copy, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUsageLimits, FREE_LIMITS, PREMIUM_LIMITS } from "@/hooks/useUsageLimits";
@@ -13,8 +13,11 @@ const ProfilePage = () => {
   const { isPremium, getUsage, limits } = useUsageLimits();
   const navigate = useNavigate();
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [nickname, setNickname] = useState("");
   const [phone, setPhone] = useState("");
+  const [passwordConfirmText, setPasswordConfirmText] = useState("");
+  const [referralCount, setReferralCount] = useState(0);
   const [scanHistory, setScanHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [usage, setUsage] = useState({ scans_count: 0, listings_count: 0 });
@@ -34,6 +37,9 @@ const ProfilePage = () => {
       getUsage().then(setUsage);
       supabase.from("warnings" as any).select("*").eq("user_id", user.id).eq("acknowledged", false).then(({ data }) => {
         setWarnings((data || []) as any[]);
+      });
+      supabase.from("referrals" as any).select("id", { count: "exact", head: true }).eq("referrer_id", user.id).then(({ count }) => {
+        setReferralCount(count || 0);
       });
     }
   }, [user, getUsage]);
