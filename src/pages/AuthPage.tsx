@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { Mail, Lock, User, Eye, EyeOff, KeyRound, ArrowLeft, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Mail, Lock, User, Eye, EyeOff, KeyRound, ArrowLeft, CheckCircle2, AlertCircle, Loader2, Phone } from "lucide-react";
 import rosiLogo from "@/assets/rosi-logo.png";
 import { toast } from "sonner";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -10,18 +10,37 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 type Mode = "login" | "signup" | "verify-signup" | "forgot" | "verify-reset" | "new-password";
 type SendStatus = "idle" | "sending" | "sent" | "failed";
 
+type OtpPurpose = "signup" | "reset";
+
+const PENDING_PASSWORD_KEY = "rosy_pending_password";
+const PENDING_NICKNAME_KEY = "rosy_pending_nickname";
+const PENDING_PHONE_KEY = "rosy_pending_phone";
+const PENDING_REFERRER_KEY = "rosy_pending_referrer";
+
 const AuthPage = () => {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [nickname, setNickname] = useState("");
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sendStatus, setSendStatus] = useState<SendStatus>("idle");
   const [sendError, setSendError] = useState<string>("");
+  const [otpPurpose, setOtpPurpose] = useState<OtpPurpose | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) {
+      localStorage.setItem(PENDING_REFERRER_KEY, ref);
+      setMode("signup");
+    }
+    if (searchParams.get("mode") === "new-password") setMode("new-password");
+  }, [searchParams]);
 
   const resetState = () => {
     setOtp("");
@@ -29,9 +48,41 @@ const AuthPage = () => {
     setNewPassword("");
     setSendStatus("idle");
     setSendError("");
+    setOtpPurpose(null);
   };
 
-  // LOGIN
+  const setSending = (purpose: OtpPurpose) => {
+    setOtp("");
+    setOtpPurpose(purpose);
+    setSendStatus("sending");
+    setSendError("");
+  };
+
+  const saveProfileAndReferral = async (userId: string) => {
+    const pendingNickname = sessionStorage.getItem(PENDING_NICKNAME_KEY) || nickname || email.split("@")[0];
+    const pendingPhone = sessionStorage.getItem(PENDING_PHONE_KEY) || phone || null;
+
+    await supabase.from("profiles").upsert({
+      user_id: userId,
+      nickname: pendingNickname,
+      phone: pendingPhone,
+    } as any, { onConflict: "user_id" });
+
+    const referrerId = localStorage.getItem(PENDING_REFERRER_KEY);
+    if (referrerId && referrerId !== userId) {
+      const { error } = await supabase.from("referrals" as any).insert({
+        referrer_id: referrerId,
+        referred_id: userId,
+      } as any);
+      if (!error) toast.success("Referral aktif: pengundang mendapat 50 poin Rosy!");
+      localStorage.removeItem(PENDING_REFERRER_KEY);
+    }
+
+    sessionStorage.removeItem(PENDING_PASSWORD_KEY);
+    sessionStorage.removeItem(PENDING_NICKNAME_KEY);
+    sessionStorage.removeItem(PENDING_PHONE_KEY);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -47,121 +98,107 @@ const AuthPage = () => {
     }
   };
 
-  // SIGNUP — kirim OTP 6 digit via signInWithOtp (shouldCreateUser=true)
-  // Password disimpan sementara dan di-set setelah verifikasi berhasil.
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setSendStatus("sending");
-    setSendError("");
+    setSending("signup");
     try {
-      // Simpan password & nickname sementara di sessionStorage untuk dipakai
-      // setelah OTP terverifikasi (lalu user login).
-      sessionStorage.setItem("rosy_pending_password", password);
-      sessionStorage.setItem("rosy_pending_nickname", nickname);
+      sessionStorage.setItem(PENDING_PASSWORD_KEY, password);
+      sessionStorage.setItem(PENDING_NICKNAME_KEY, nickname);
+      sessionStorage.setItem(PENDING_PHONE_KEY, phone);
 
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.signUp({
         email,
+        password,
         options: {
-          shouldCreateUser: true,
-          data: { nickname },
+          data: { nickname, phone: phone || null },
+          emailRedirectTo: `${window.location.origin}/auth`,
         },
       });
       if (error) throw error;
       setSendStatus("sent");
-      toast.success("Kode 6 digit terkirim ke email kamu!");
+      toast.success("Kode verifikasi terkirim ke email kamu.");
       setMode("verify-signup");
     } catch (error: any) {
       setSendStatus("failed");
-      setSendError(error.message || "Gagal mengirim kode");
-      toast.error(error.message || "Gagal mengirim kode");
+      setSendError(error.message || "Gagal mengirim kode verifikasi");
+      toast.error(error.message || "Gagal mengirim kode verifikasi");
     } finally {
       setLoading(false);
     }
   };
 
-  // VERIFY SIGNUP OTP — verify lalu set password user
   const handleVerifySignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sendStatus !== "sent") {
-      toast.error("Kode belum terkirim. Coba kirim ulang dulu.");
+    if (sendStatus !== "sent" || otpPurpose !== "signup") {
+      toast.error("Kode belum terkirim. Kirim ulang dulu.");
       return;
     }
     if (otp.length !== 6) { toast.error("Masukkan 6 digit kode"); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email, token: otp, type: "email",
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: "signup",
       });
       if (error) throw error;
-
-      // Set password setelah berhasil verifikasi & login
-      const pendingPwd = sessionStorage.getItem("rosy_pending_password");
-      if (pendingPwd) {
-        const { error: pwdErr } = await supabase.auth.updateUser({ password: pendingPwd });
-        if (pwdErr) console.warn("Password set error:", pwdErr);
-        sessionStorage.removeItem("rosy_pending_password");
-        sessionStorage.removeItem("rosy_pending_nickname");
-      }
-
+      if (data.user?.id) await saveProfileAndReferral(data.user.id);
       toast.success("Email terverifikasi! Selamat datang 🎉");
       navigate("/");
     } catch (error: any) {
-      toast.error(error.message || "Kode salah / kedaluwarsa");
+      toast.error(error.message || "Kode salah atau kedaluwarsa");
     } finally {
       setLoading(false);
     }
   };
 
-  // FORGOT — kirim OTP recovery via signInWithOtp (user sudah ada)
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) { toast.error("Masukkan email"); return; }
     setLoading(true);
-    setSendStatus("sending");
-    setSendError("");
+    setSending("reset");
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: false },
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
       setSendStatus("sent");
-      toast.success("Kode 6 digit terkirim ke email kamu!");
+      toast.success("Kode reset password terkirim ke email kamu.");
       setMode("verify-reset");
     } catch (error: any) {
       setSendStatus("failed");
-      setSendError(error.message || "Email tidak ditemukan / gagal kirim");
+      setSendError(error.message || "Email tidak ditemukan atau gagal kirim");
       toast.error(error.message || "Gagal kirim kode");
     } finally {
       setLoading(false);
     }
   };
 
-  // VERIFY RESET OTP — login pakai OTP, lalu user bisa update password
   const handleVerifyReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sendStatus !== "sent") {
-      toast.error("Kode belum terkirim. Coba kirim ulang dulu.");
+    if (sendStatus !== "sent" || otpPurpose !== "reset") {
+      toast.error("Kode belum terkirim. Kirim ulang dulu.");
       return;
     }
     if (otp.length !== 6) { toast.error("Masukkan 6 digit kode"); return; }
     setLoading(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
-        email, token: otp, type: "email",
+        email,
+        token: otp,
+        type: "recovery",
       });
       if (error) throw error;
       toast.success("Kode benar! Buat password baru.");
       setMode("new-password");
     } catch (error: any) {
-      toast.error(error.message || "Kode salah / kedaluwarsa");
+      toast.error(error.message || "Kode salah atau kedaluwarsa");
     } finally {
       setLoading(false);
     }
   };
 
-  // SET NEW PASSWORD
   const handleSetNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) { toast.error("Password minimal 6 karakter"); return; }
@@ -178,15 +215,14 @@ const AuthPage = () => {
     }
   };
 
-  const handleResend = async (purpose: "signup" | "reset") => {
+  const handleResend = async (purpose: OtpPurpose) => {
+    if (!email) { toast.error("Masukkan email dulu"); return; }
     setLoading(true);
-    setSendStatus("sending");
-    setSendError("");
+    setSending(purpose);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: purpose === "signup" },
-      });
+      const { error } = purpose === "signup"
+        ? await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: `${window.location.origin}/auth` } })
+        : await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
       if (error) throw error;
       setSendStatus("sent");
       toast.success("Kode baru terkirim");
@@ -205,15 +241,15 @@ const AuthPage = () => {
       return (
         <div className="flex items-center gap-2 bg-secondary text-foreground rounded-xl px-3 py-2 text-xs">
           <Loader2 className="w-4 h-4 animate-spin text-primary" />
-          <span>Mengirim kode ke {email}...</span>
+          <span>Mengirim kode angka ke {email}...</span>
         </div>
       );
     }
     if (sendStatus === "sent") {
       return (
-        <div className="flex items-center gap-2 bg-primary/10 text-foreground rounded-xl px-3 py-2 text-xs border border-primary/30">
-          <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
-          <span>Kode terkirim! Cek inbox / spam Gmail kamu.</span>
+        <div className="flex items-start gap-2 bg-primary/10 text-foreground rounded-xl px-3 py-2 text-xs border border-primary/30">
+          <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+          <span>Kode terkirim. Masukkan 6 digit angka dari inbox atau spam Gmail.</span>
         </div>
       );
     }
@@ -225,14 +261,17 @@ const AuthPage = () => {
     );
   };
 
+  const OtpSlots = () => (
+    <InputOTP maxLength={6} value={otp} onChange={setOtp} disabled={sendStatus !== "sent"}>
+      <InputOTPGroup>
+        {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-11 h-12 text-base" />)}
+      </InputOTPGroup>
+    </InputOTP>
+  );
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm space-y-6"
-      >
-        {/* Header */}
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 py-8">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <img src={rosiLogo} alt="Rosy Logo" className="w-20 h-20 mx-auto" />
           <h1 className="text-3xl font-extrabold text-foreground">Rosy</h1>
@@ -241,77 +280,61 @@ const AuthPage = () => {
             {mode === "signup" && "Buat akun baru"}
             {mode === "verify-signup" && "Verifikasi email kamu"}
             {mode === "forgot" && "Lupa password?"}
-            {mode === "verify-reset" && "Masukkan kode dari email"}
+            {mode === "verify-reset" && "Masukkan kode angka dari email"}
             {mode === "new-password" && "Buat password baru"}
           </p>
         </div>
 
-        {/* LOGIN */}
         {mode === "login" && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type={showPassword ? "text" : "password"} placeholder="Password" value={password}
-                onChange={(e) => setPassword(e.target.value)} required minLength={6}
-                className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2">
                 {showPassword ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4 text-muted-foreground" />}
               </button>
             </div>
-            <button type="submit" disabled={loading}
-              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            <button type="submit" disabled={loading} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Loading..." : "Masuk"}
             </button>
-            <button type="button" onClick={() => { resetState(); setMode("forgot"); }}
-              className="w-full text-sm text-primary font-semibold">
-              Lupa Password?
-            </button>
-            <p className="text-center text-sm text-muted-foreground">
-              Belum punya akun?{" "}
-              <button type="button" onClick={() => { resetState(); setMode("signup"); }} className="text-primary font-bold">Daftar</button>
-            </p>
+            <button type="button" onClick={() => { resetState(); setMode("forgot"); }} className="w-full text-sm text-primary font-semibold">Lupa Password?</button>
+            <p className="text-center text-sm text-muted-foreground">Belum punya akun? <button type="button" onClick={() => { resetState(); setMode("signup"); }} className="text-primary font-bold">Daftar</button></p>
           </form>
         )}
 
-        {/* SIGNUP */}
         {mode === "signup" && (
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type="text" placeholder="Nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} required
-                className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input type="text" placeholder="Nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} required className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input type="tel" placeholder="Nomor telepon (opsional)" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type={showPassword ? "text" : "password"} placeholder="Password (min 6 karakter)" value={password}
-                onChange={(e) => setPassword(e.target.value)} required minLength={6}
-                className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input type={showPassword ? "text" : "password"} placeholder="Password (min 6 karakter)" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2">
                 {showPassword ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4 text-muted-foreground" />}
               </button>
             </div>
-            <button type="submit" disabled={loading}
-              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            <StatusBanner />
+            <button type="submit" disabled={loading} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Mengirim kode..." : "Daftar & Kirim Kode"}
             </button>
-            <p className="text-center text-sm text-muted-foreground">
-              Sudah punya akun?{" "}
-              <button type="button" onClick={() => { resetState(); setMode("login"); }} className="text-primary font-bold">Masuk</button>
-            </p>
+            <p className="text-center text-sm text-muted-foreground">Sudah punya akun? <button type="button" onClick={() => { resetState(); setMode("login"); }} className="text-primary font-bold">Masuk</button></p>
           </form>
         )}
 
-        {/* VERIFY SIGNUP */}
         {mode === "verify-signup" && (
           <form onSubmit={handleVerifySignup} className="space-y-5">
             <div className="bg-card border border-border rounded-xl p-4 text-center space-y-1">
@@ -320,48 +343,29 @@ const AuthPage = () => {
               <p className="text-sm font-bold text-foreground break-all">{email}</p>
             </div>
             <StatusBanner />
-            <div className="flex justify-center">
-              <InputOTP maxLength={6} value={otp} onChange={setOtp} disabled={sendStatus !== "sent"}>
-                <InputOTPGroup>
-                  {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-11 h-12 text-base" />)}
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
-            <button type="submit" disabled={loading || otp.length !== 6 || sendStatus !== "sent"}
-              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            <div className="flex justify-center"><OtpSlots /></div>
+            <button type="submit" disabled={loading || otp.length !== 6 || sendStatus !== "sent"} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Memverifikasi..." : "Verifikasi"}
             </button>
-            <button type="button" onClick={() => handleResend("signup")} disabled={loading}
-              className="w-full text-sm text-primary font-semibold disabled:opacity-50">
-              Kirim ulang kode
-            </button>
-            <button type="button" onClick={() => { resetState(); setMode("login"); }}
-              className="w-full text-sm text-muted-foreground flex items-center justify-center gap-1">
-              <ArrowLeft className="w-3 h-3" /> Kembali
-            </button>
+            <button type="button" onClick={() => handleResend("signup")} disabled={loading} className="w-full text-sm text-primary font-semibold disabled:opacity-50">Kirim ulang kode</button>
+            <button type="button" onClick={() => { resetState(); setMode("login"); }} className="w-full text-sm text-muted-foreground flex items-center justify-center gap-1"><ArrowLeft className="w-3 h-3" /> Kembali</button>
           </form>
         )}
 
-        {/* FORGOT */}
         {mode === "forgot" && (
           <form onSubmit={handleForgot} className="space-y-4">
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type="email" placeholder="Email kamu" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input type="email" placeholder="Email kamu" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
-            <button type="submit" disabled={loading}
-              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            <StatusBanner />
+            <button type="submit" disabled={loading} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Mengirim..." : "Kirim Kode 6 Digit"}
             </button>
-            <button type="button" onClick={() => { resetState(); setMode("login"); }}
-              className="w-full text-sm text-muted-foreground flex items-center justify-center gap-1">
-              <ArrowLeft className="w-3 h-3" /> Kembali ke Login
-            </button>
+            <button type="button" onClick={() => { resetState(); setMode("login"); }} className="w-full text-sm text-muted-foreground flex items-center justify-center gap-1"><ArrowLeft className="w-3 h-3" /> Kembali ke Login</button>
           </form>
         )}
 
-        {/* VERIFY RESET */}
         {mode === "verify-reset" && (
           <form onSubmit={handleVerifyReset} className="space-y-5">
             <div className="bg-card border border-border rounded-xl p-4 text-center space-y-1">
@@ -370,42 +374,25 @@ const AuthPage = () => {
               <p className="text-sm font-bold text-foreground break-all">{email}</p>
             </div>
             <StatusBanner />
-            <div className="flex justify-center">
-              <InputOTP maxLength={6} value={otp} onChange={setOtp} disabled={sendStatus !== "sent"}>
-                <InputOTPGroup>
-                  {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-11 h-12 text-base" />)}
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
-            <button type="submit" disabled={loading || otp.length !== 6 || sendStatus !== "sent"}
-              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            <div className="flex justify-center"><OtpSlots /></div>
+            <button type="submit" disabled={loading || otp.length !== 6 || sendStatus !== "sent"} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Memverifikasi..." : "Verifikasi Kode"}
             </button>
-            <button type="button" onClick={() => handleResend("reset")} disabled={loading}
-              className="w-full text-sm text-primary font-semibold disabled:opacity-50">
-              Kirim ulang kode
-            </button>
-            <button type="button" onClick={() => { resetState(); setMode("forgot"); }}
-              className="w-full text-sm text-muted-foreground flex items-center justify-center gap-1">
-              <ArrowLeft className="w-3 h-3" /> Kembali
-            </button>
+            <button type="button" onClick={() => handleResend("reset")} disabled={loading} className="w-full text-sm text-primary font-semibold disabled:opacity-50">Kirim ulang kode</button>
+            <button type="button" onClick={() => { resetState(); setMode("forgot"); }} className="w-full text-sm text-muted-foreground flex items-center justify-center gap-1"><ArrowLeft className="w-3 h-3" /> Kembali</button>
           </form>
         )}
 
-        {/* NEW PASSWORD */}
         {mode === "new-password" && (
           <form onSubmit={handleSetNewPassword} className="space-y-4">
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type={showPassword ? "text" : "password"} placeholder="Password baru" value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)} required minLength={6}
-                className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input type={showPassword ? "text" : "password"} placeholder="Password baru" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={6} className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2">
                 {showPassword ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4 text-muted-foreground" />}
               </button>
             </div>
-            <button type="submit" disabled={loading}
-              className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            <button type="submit" disabled={loading} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Menyimpan..." : "Simpan Password Baru"}
             </button>
           </form>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Settings, LogOut, History, ShoppingBag, Scan, Recycle, Star, ChevronRight, Megaphone, Edit2, X, Crown, Gift, Camera, AlertTriangle } from "lucide-react";
+import { Settings, LogOut, History, ShoppingBag, Scan, Recycle, Star, ChevronRight, Megaphone, Edit2, X, Crown, Gift, Camera, AlertTriangle, Link, Copy, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUsageLimits, FREE_LIMITS, PREMIUM_LIMITS } from "@/hooks/useUsageLimits";
@@ -13,8 +13,11 @@ const ProfilePage = () => {
   const { isPremium, getUsage, limits } = useUsageLimits();
   const navigate = useNavigate();
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [nickname, setNickname] = useState("");
   const [phone, setPhone] = useState("");
+  const [passwordConfirmText, setPasswordConfirmText] = useState("");
+  const [referralCount, setReferralCount] = useState(0);
   const [scanHistory, setScanHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [usage, setUsage] = useState({ scans_count: 0, listings_count: 0 });
@@ -34,6 +37,9 @@ const ProfilePage = () => {
       getUsage().then(setUsage);
       supabase.from("warnings" as any).select("*").eq("user_id", user.id).eq("acknowledged", false).then(({ data }) => {
         setWarnings((data || []) as any[]);
+      });
+      supabase.from("referrals" as any).select("id", { count: "exact", head: true }).eq("referrer_id", user.id).then(({ count }) => {
+        setReferralCount(count || 0);
       });
     }
   }, [user, getUsage]);
@@ -81,6 +87,21 @@ const ProfilePage = () => {
     toast.success("Profil berhasil diupdate!");
     setShowEditProfile(false);
     await refreshProfile();
+  };
+
+  const referralLink = user ? `${window.location.origin}/auth?ref=${user.id}` : "";
+
+  const copyReferralLink = async () => {
+    await navigator.clipboard.writeText(referralLink);
+    toast.success("Referral link disalin");
+  };
+
+  const handleChangePasswordRequest = () => {
+    if (passwordConfirmText.trim() !== "I want to change my password") {
+      toast.error('Tulis tepat: "I want to change my password"');
+      return;
+    }
+    navigate("/auth?mode=new-password");
   };
 
   const handleLogout = async () => {
@@ -197,6 +218,21 @@ const ProfilePage = () => {
         </div>
       </div>
 
+      {/* Referral */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Link className="w-4 h-4 text-primary" />
+            <h3 className="font-bold text-foreground">Referral Rosy</h3>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{referralCount}/4</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Dapatkan 50 poin Rosy untuk setiap teman yang daftar lewat link kamu. Maksimal 4 orang.</p>
+        <button onClick={copyReferralLink} className="w-full flex items-center justify-center gap-2 rosi-gradient text-primary-foreground py-2.5 rounded-xl text-xs font-bold">
+          <Copy className="w-3.5 h-3.5" /> Salin Referral Link
+        </button>
+      </div>
+
       {/* Monthly usage */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -294,7 +330,7 @@ const ProfilePage = () => {
           <p className="text-sm font-semibold text-foreground flex-1">Riwayat Transaksi</p>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
-        <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
+        <button onClick={() => setShowSettings(true)} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
           <Settings className="w-5 h-5 text-muted-foreground" />
           <p className="text-sm font-semibold text-foreground flex-1">Settings</p>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -331,6 +367,31 @@ const ProfilePage = () => {
             <button onClick={handleUpdateProfile} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm">
               Save Changes
             </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 bg-foreground/50 flex items-center justify-center px-6">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-card rounded-2xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-foreground">Settings</h3>
+              <button onClick={() => setShowSettings(false)}>
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <KeyRound className="w-4 h-4 text-primary" /> Ganti Password
+              </div>
+              <input value={passwordConfirmText} onChange={(e) => setPasswordConfirmText(e.target.value)} placeholder="I want to change my password"
+                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <button onClick={handleChangePasswordRequest} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm">
+                Lanjut Ganti Password
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
