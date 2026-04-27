@@ -218,6 +218,21 @@ const ProfilePage = () => {
         </div>
       </div>
 
+      {/* Referral */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Link className="w-4 h-4 text-primary" />
+            <h3 className="font-bold text-foreground">Referral Rosy</h3>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{referralCount}/4</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Dapatkan 50 poin Rosy untuk setiap teman yang daftar lewat link kamu. Maksimal 4 orang.</p>
+        <button onClick={copyReferralLink} className="w-full flex items-center justify-center gap-2 rosi-gradient text-primary-foreground py-2.5 rounded-xl text-xs font-bold">
+          <Copy className="w-3.5 h-3.5" /> Salin Referral Link
+        </button>
+      </div>
+
       {/* Monthly usage */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
