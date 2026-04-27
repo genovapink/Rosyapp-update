@@ -330,7 +330,7 @@ const ProfilePage = () => {
           <p className="text-sm font-semibold text-foreground flex-1">Riwayat Transaksi</p>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
-        <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
+        <button onClick={() => setShowSettings(true)} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
           <Settings className="w-5 h-5 text-muted-foreground" />
           <p className="text-sm font-semibold text-foreground flex-1">Settings</p>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -367,6 +367,31 @@ const ProfilePage = () => {
             <button onClick={handleUpdateProfile} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm">
               Save Changes
             </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 bg-foreground/50 flex items-center justify-center px-6">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-card rounded-2xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-foreground">Settings</h3>
+              <button onClick={() => setShowSettings(false)}>
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <KeyRound className="w-4 h-4 text-primary" /> Ganti Password
+              </div>
+              <input value={passwordConfirmText} onChange={(e) => setPasswordConfirmText(e.target.value)} placeholder="I want to change my password"
+                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <button onClick={handleChangePasswordRequest} className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm">
+                Lanjut Ganti Password
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
