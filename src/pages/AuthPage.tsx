@@ -2,12 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { Mail, Lock, User, Eye, EyeOff, KeyRound, ArrowLeft } from "lucide-react";
+import { Mail, Lock, User, Eye, EyeOff, KeyRound, ArrowLeft, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import rosiLogo from "@/assets/rosi-logo.png";
 import { toast } from "sonner";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 type Mode = "login" | "signup" | "verify-signup" | "forgot" | "verify-reset" | "new-password";
+type SendStatus = "idle" | "sending" | "sent" | "failed";
 
 const AuthPage = () => {
   const [mode, setMode] = useState<Mode>("login");
@@ -18,12 +19,16 @@ const AuthPage = () => {
   const [otp, setOtp] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sendStatus, setSendStatus] = useState<SendStatus>("idle");
+  const [sendError, setSendError] = useState<string>("");
   const navigate = useNavigate();
 
   const resetState = () => {
     setOtp("");
     setPassword("");
     setNewPassword("");
+    setSendStatus("idle");
+    setSendError("");
   };
 
   // LOGIN
@@ -42,73 +47,109 @@ const AuthPage = () => {
     }
   };
 
-  // SIGNUP - kirim OTP ke email
+  // SIGNUP — kirim OTP 6 digit via signInWithOtp (shouldCreateUser=true)
+  // Password disimpan sementara dan di-set setelah verifikasi berhasil.
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSendStatus("sending");
+    setSendError("");
     try {
-      const { error } = await supabase.auth.signUp({
+      // Simpan password & nickname sementara di sessionStorage untuk dipakai
+      // setelah OTP terverifikasi (lalu user login).
+      sessionStorage.setItem("rosy_pending_password", password);
+      sessionStorage.setItem("rosy_pending_nickname", nickname);
+
+      const { error } = await supabase.auth.signInWithOtp({
         email,
-        password,
         options: {
+          shouldCreateUser: true,
           data: { nickname },
-          emailRedirectTo: `${window.location.origin}/`,
         },
       });
       if (error) throw error;
-      toast.success("Kode 6 digit dikirim ke email kamu!");
+      setSendStatus("sent");
+      toast.success("Kode 6 digit terkirim ke email kamu!");
       setMode("verify-signup");
     } catch (error: any) {
-      toast.error(error.message || "Gagal mendaftar");
+      setSendStatus("failed");
+      setSendError(error.message || "Gagal mengirim kode");
+      toast.error(error.message || "Gagal mengirim kode");
     } finally {
       setLoading(false);
     }
   };
 
-  // VERIFY SIGNUP OTP
+  // VERIFY SIGNUP OTP — verify lalu set password user
   const handleVerifySignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sendStatus !== "sent") {
+      toast.error("Kode belum terkirim. Coba kirim ulang dulu.");
+      return;
+    }
     if (otp.length !== 6) { toast.error("Masukkan 6 digit kode"); return; }
     setLoading(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
-        email, token: otp, type: "signup",
+        email, token: otp, type: "email",
       });
       if (error) throw error;
+
+      // Set password setelah berhasil verifikasi & login
+      const pendingPwd = sessionStorage.getItem("rosy_pending_password");
+      if (pendingPwd) {
+        const { error: pwdErr } = await supabase.auth.updateUser({ password: pendingPwd });
+        if (pwdErr) console.warn("Password set error:", pwdErr);
+        sessionStorage.removeItem("rosy_pending_password");
+        sessionStorage.removeItem("rosy_pending_nickname");
+      }
+
       toast.success("Email terverifikasi! Selamat datang 🎉");
       navigate("/");
     } catch (error: any) {
-      toast.error(error.message || "Kode salah");
+      toast.error(error.message || "Kode salah / kedaluwarsa");
     } finally {
       setLoading(false);
     }
   };
 
-  // FORGOT - kirim OTP recovery
+  // FORGOT — kirim OTP recovery via signInWithOtp (user sudah ada)
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) { toast.error("Masukkan email"); return; }
     setLoading(true);
+    setSendStatus("sending");
+    setSendError("");
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false },
+      });
       if (error) throw error;
-      toast.success("Kode 6 digit dikirim ke email kamu!");
+      setSendStatus("sent");
+      toast.success("Kode 6 digit terkirim ke email kamu!");
       setMode("verify-reset");
     } catch (error: any) {
+      setSendStatus("failed");
+      setSendError(error.message || "Email tidak ditemukan / gagal kirim");
       toast.error(error.message || "Gagal kirim kode");
     } finally {
       setLoading(false);
     }
   };
 
-  // VERIFY RESET OTP
+  // VERIFY RESET OTP — login pakai OTP, lalu user bisa update password
   const handleVerifyReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sendStatus !== "sent") {
+      toast.error("Kode belum terkirim. Coba kirim ulang dulu.");
+      return;
+    }
     if (otp.length !== 6) { toast.error("Masukkan 6 digit kode"); return; }
     setLoading(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
-        email, token: otp, type: "recovery",
+        email, token: otp, type: "email",
       });
       if (error) throw error;
       toast.success("Kode benar! Buat password baru.");
@@ -135,6 +176,53 @@ const AuthPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResend = async (purpose: "signup" | "reset") => {
+    setLoading(true);
+    setSendStatus("sending");
+    setSendError("");
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: purpose === "signup" },
+      });
+      if (error) throw error;
+      setSendStatus("sent");
+      toast.success("Kode baru terkirim");
+    } catch (e: any) {
+      setSendStatus("failed");
+      setSendError(e.message || "Gagal kirim ulang");
+      toast.error(e.message || "Gagal kirim ulang");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const StatusBanner = () => {
+    if (sendStatus === "idle") return null;
+    if (sendStatus === "sending") {
+      return (
+        <div className="flex items-center gap-2 bg-secondary text-foreground rounded-xl px-3 py-2 text-xs">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <span>Mengirim kode ke {email}...</span>
+        </div>
+      );
+    }
+    if (sendStatus === "sent") {
+      return (
+        <div className="flex items-center gap-2 bg-primary/10 text-foreground rounded-xl px-3 py-2 text-xs border border-primary/30">
+          <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+          <span>Kode terkirim! Cek inbox / spam Gmail kamu.</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-start gap-2 bg-destructive/10 text-destructive rounded-xl px-3 py-2 text-xs border border-destructive/30">
+        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <span>{sendError || "Gagal kirim kode"}</span>
+      </div>
+    );
   };
 
   return (
@@ -231,25 +319,20 @@ const AuthPage = () => {
               <p className="text-xs text-muted-foreground">Kode 6 digit dikirim ke</p>
               <p className="text-sm font-bold text-foreground break-all">{email}</p>
             </div>
+            <StatusBanner />
             <div className="flex justify-center">
-              <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+              <InputOTP maxLength={6} value={otp} onChange={setOtp} disabled={sendStatus !== "sent"}>
                 <InputOTPGroup>
                   {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-11 h-12 text-base" />)}
                 </InputOTPGroup>
               </InputOTP>
             </div>
-            <button type="submit" disabled={loading || otp.length !== 6}
+            <button type="submit" disabled={loading || otp.length !== 6 || sendStatus !== "sent"}
               className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Memverifikasi..." : "Verifikasi"}
             </button>
-            <button type="button" onClick={async () => {
-              setLoading(true);
-              try {
-                const { error } = await supabase.auth.resend({ type: "signup", email });
-                if (error) throw error;
-                toast.success("Kode baru dikirim");
-              } catch (e: any) { toast.error(e.message); } finally { setLoading(false); }
-            }} className="w-full text-sm text-primary font-semibold">
+            <button type="button" onClick={() => handleResend("signup")} disabled={loading}
+              className="w-full text-sm text-primary font-semibold disabled:opacity-50">
               Kirim ulang kode
             </button>
             <button type="button" onClick={() => { resetState(); setMode("login"); }}
@@ -286,16 +369,21 @@ const AuthPage = () => {
               <p className="text-xs text-muted-foreground">Kode reset password dikirim ke</p>
               <p className="text-sm font-bold text-foreground break-all">{email}</p>
             </div>
+            <StatusBanner />
             <div className="flex justify-center">
-              <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+              <InputOTP maxLength={6} value={otp} onChange={setOtp} disabled={sendStatus !== "sent"}>
                 <InputOTPGroup>
                   {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} className="w-11 h-12 text-base" />)}
                 </InputOTPGroup>
               </InputOTP>
             </div>
-            <button type="submit" disabled={loading || otp.length !== 6}
+            <button type="submit" disabled={loading || otp.length !== 6 || sendStatus !== "sent"}
               className="w-full rosi-gradient text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50">
               {loading ? "Memverifikasi..." : "Verifikasi Kode"}
+            </button>
+            <button type="button" onClick={() => handleResend("reset")} disabled={loading}
+              className="w-full text-sm text-primary font-semibold disabled:opacity-50">
+              Kirim ulang kode
             </button>
             <button type="button" onClick={() => { resetState(); setMode("forgot"); }}
               className="w-full text-sm text-muted-foreground flex items-center justify-center gap-1">
