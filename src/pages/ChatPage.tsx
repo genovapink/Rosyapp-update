@@ -98,7 +98,7 @@ const ChatPage = () => {
       .from("profiles" as any)
       .select("user_id, nickname, avatar_url")
       .in("user_id", ids);
-    setFriends((profiles || []) as FriendProfile[]);
+    setFriends(((profiles || []) as unknown) as FriendProfile[]);
   }, [user]);
 
   const addFriend = useCallback(async (friendId: string) => {
