@@ -89,6 +89,21 @@ const ProfilePage = () => {
     await refreshProfile();
   };
 
+  const referralLink = user ? `${window.location.origin}/auth?ref=${user.id}` : "";
+
+  const copyReferralLink = async () => {
+    await navigator.clipboard.writeText(referralLink);
+    toast.success("Referral link disalin");
+  };
+
+  const handleChangePasswordRequest = () => {
+    if (passwordConfirmText.trim() !== "I want to change my password") {
+      toast.error('Tulis tepat: "I want to change my password"');
+      return;
+    }
+    navigate("/auth?mode=new-password");
+  };
+
   const handleLogout = async () => {
     await signOut();
     navigate("/");
