@@ -124,19 +124,14 @@ const ScanWastePage = () => {
         .select()
         .single();
 
-      if (saveError) console.error("Save error:", saveError);
+      if (saveError) throw saveError;
       if (savedScan) setSavedScanId((savedScan as any).id);
 
-      await supabase
-        .from("profiles")
-        .update({
-          total_scans: (await supabase.from("scan_results").select("id", { count: "exact" }).eq("user_id", user.id)).count || 0,
-        } as any)
-        .eq("user_id", user.id);
-
       // Increment counter & award point
-      await incrementCounter("scans_count");
-      await awardPoints(POINTS_PER_SCAN);
+      await Promise.all([
+        incrementCounter("scans_count"),
+        awardPoints(POINTS_PER_SCAN),
+      ]);
       toast.success(`+${POINTS_PER_SCAN} Rosy Point!`);
 
       await refreshProfile();
