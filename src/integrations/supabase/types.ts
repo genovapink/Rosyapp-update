@@ -592,6 +592,41 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ensure_profile: {
+        Args: { _nickname?: string; _phone?: string }
+        Returns: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          is_banned: boolean
+          is_official: boolean
+          is_premium: boolean
+          level: number
+          nickname: string | null
+          phone: string | null
+          points: number
+          premium_until: string | null
+          total_recycled_kg: number
+          total_scans: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_app_stats: {
+        Args: never
+        Returns: {
+          total_listings: number
+          total_recycled: number
+          total_scans: number
+          total_users: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
