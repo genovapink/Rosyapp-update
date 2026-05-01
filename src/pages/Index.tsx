@@ -22,6 +22,20 @@ const HomePage = () => {
   const [activeAds, setActiveAds] = useState<any[]>([]);
   const [adIndex, setAdIndex] = useState(0);
 
+  const fetchHomeData = async () => {
+    const [scansRes, profilesRes, adsRes] = await Promise.all([
+      supabase.from("scan_results").select("id", { count: "exact", head: true }),
+      supabase.from("profiles").select("id, total_recycled_kg"),
+      supabase.from("promotions").select("*").eq("status", "active"),
+    ]);
+    const profiles = (profilesRes.data || []) as any[];
+    const totalRecycled = profiles.reduce((acc: number, p: any) => acc + (Number(p.total_recycled_kg) || 0), 0);
+    setGlobalStats({ scans: scansRes.count || 0, recycled: totalRecycled, users: profiles.length });
+    const now = new Date();
+    const ads = ((adsRes.data || []) as any[]).filter((ad: any) => ad.end_date && new Date(ad.end_date) > now);
+    setActiveAds(ads);
+  };
+
   const categories = [
     { name: t("cat.plastik"), icon: "♻️" },
     { name: t("cat.kaca"), icon: "🫙" },
@@ -32,20 +46,16 @@ const HomePage = () => {
   ];
 
   useEffect(() => {
-    const fetchData = async () => {
-      const [scansRes, profilesRes, adsRes] = await Promise.all([
-        supabase.from("scan_results").select("id", { count: "exact", head: true }),
-        supabase.from("profiles").select("id, total_recycled_kg"),
-        supabase.from("promotions").select("*").eq("status", "active"),
-      ]);
-      const profiles = (profilesRes.data || []) as any[];
-      const totalRecycled = profiles.reduce((acc: number, p: any) => acc + (Number(p.total_recycled_kg) || 0), 0);
-      setGlobalStats({ scans: scansRes.count || 0, recycled: totalRecycled, users: profiles.length });
-      const now = new Date();
-      const ads = ((adsRes.data || []) as any[]).filter((ad: any) => ad.end_date && new Date(ad.end_date) > now);
-      setActiveAds(ads);
-    };
-    fetchData();
+    fetchHomeData();
+
+    const channel = supabase
+      .channel("home-realtime-data")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, fetchHomeData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "scan_results" }, fetchHomeData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "promotions" }, fetchHomeData)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const handleContactOfficial = async () => {

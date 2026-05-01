@@ -599,6 +599,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      refresh_profile_scan_count: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
