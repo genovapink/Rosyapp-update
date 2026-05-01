@@ -150,6 +150,19 @@ const ChatPage = () => {
     if (!user) return;
     fetchConversations();
     fetchFriends();
+
+    const channel = supabase
+      .channel(`chat-list-realtime-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, fetchConversations)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, fetchConversations)
+      .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, fetchFriends)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
+        fetchConversations();
+        fetchFriends();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [fetchConversations, fetchFriends, user]);
 
   useEffect(() => {
@@ -208,7 +221,8 @@ const ChatPage = () => {
     if (!input.trim() || !user || !activeConversation) return;
     const content = input.trim();
     setInput("");
-    await supabase.from("messages" as any).insert({ conversation_id: activeConversation, sender_id: user.id, content } as any);
+    const { error } = await supabase.from("messages" as any).insert({ conversation_id: activeConversation, sender_id: user.id, content } as any);
+    if (error) toast.error(error.message || "Gagal mengirim pesan");
   };
 
   if (!user) {
