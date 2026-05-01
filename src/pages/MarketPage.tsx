@@ -125,7 +125,17 @@ const MarketPage = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchItems(); }, [activeFilter]);
+  useEffect(() => {
+    fetchItems();
+
+    const channel = supabase
+      .channel("market-realtime-data")
+      .on("postgres_changes", { event: "*", schema: "public", table: "market_listings" }, fetchItems)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, fetchItems)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [activeFilter]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).slice(0, 3);
@@ -187,8 +197,10 @@ const MarketPage = () => {
           scan_result_id: searchParams.get("scan_id") || null,
         } as any);
         if (error) throw error;
-        await incrementCounter("listings_count");
-        await awardPoints(POINTS_PER_LISTING);
+        await Promise.all([
+          incrementCounter("listings_count"),
+          awardPoints(POINTS_PER_LISTING),
+        ]);
         toast.success(`Listing dibuat! +${POINTS_PER_LISTING} Rosy Points 🎉`);
       }
 
