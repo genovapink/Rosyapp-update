@@ -29,25 +29,24 @@ export const useUsageLimits = () => {
     return data || { scans_count: 0, listings_count: 0 };
   }, [user]);
 
+  const recordActivity = useCallback(
+    async (activity: "scan" | "listing", points: number) => {
+      if (!user) return;
+      const { error } = await (supabase as any).rpc("increment_user_activity", {
+        _activity: activity,
+        _points: points,
+      });
+      if (error) throw error;
+      await refreshProfile();
+    },
+    [user, refreshProfile]
+  );
+
   const incrementCounter = useCallback(
     async (field: "scans_count" | "listings_count") => {
-      if (!user) return;
-      const period = currentPeriod();
-      const current = await getUsage();
-      const newValue = (current as any)[field] + 1;
-      await supabase
-        .from("usage_counters")
-        .upsert(
-          {
-            user_id: user.id,
-            period,
-            scans_count: field === "scans_count" ? newValue : (current as any).scans_count,
-            listings_count: field === "listings_count" ? newValue : (current as any).listings_count,
-          } as any,
-          { onConflict: "user_id,period" }
-        );
+      await recordActivity(field === "scans_count" ? "scan" : "listing", 0);
     },
-    [user, getUsage]
+    [recordActivity]
   );
 
   const awardPoints = useCallback(
@@ -76,6 +75,7 @@ export const useUsageLimits = () => {
     isPremium,
     limits,
     getUsage,
+    recordActivity,
     incrementCounter,
     awardPoints,
     checkScanAllowed,
