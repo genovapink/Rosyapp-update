@@ -50,9 +50,10 @@ const MarketPage = () => {
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const { user } = useAuth();
-  const { checkListingAllowed, incrementCounter, awardPoints, isPremium } = useUsageLimits();
+  const { checkListingAllowed, recordActivity, isPremium } = useUsageLimits();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Form state
   const [title, setTitle] = useState(searchParams.get("name") || "");
@@ -102,6 +103,8 @@ const MarketPage = () => {
       const mappedType = wasteTypeMap[activeFilter];
       if (mappedType) query = query.eq("waste_type", mappedType);
     }
+    const keyword = searchTerm.trim();
+    if (keyword) query = query.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%,location.ilike.%${keyword}%,waste_type.ilike.%${keyword}%`);
     const { data, error } = await query;
     if (error) { console.error(error); setLoading(false); return; }
 
@@ -135,7 +138,7 @@ const MarketPage = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [activeFilter]);
+  }, [activeFilter, searchTerm]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).slice(0, 3);
@@ -197,10 +200,7 @@ const MarketPage = () => {
           scan_result_id: searchParams.get("scan_id") || null,
         } as any);
         if (error) throw error;
-        await Promise.all([
-          incrementCounter("listings_count"),
-          awardPoints(POINTS_PER_LISTING),
-        ]);
+        await recordActivity("listing", POINTS_PER_LISTING);
         toast.success(`Listing dibuat! +${POINTS_PER_LISTING} Rosy Points 🎉`);
       }
 
@@ -386,7 +386,7 @@ const MarketPage = () => {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input type="text" placeholder="Cari sampah..."
+        <input type="text" placeholder="Cari sampah..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
         <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
       </div>

@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_public_stats: {
+        Row: {
+          id: boolean
+          total_listings: number
+          total_recycled: number
+          total_scans: number
+          total_users: number
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          total_listings?: number
+          total_recycled?: number
+          total_scans?: number
+          total_users?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          total_listings?: number
+          total_recycled?: number
+          total_scans?: number
+          total_users?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           buyer_id: string
@@ -592,6 +619,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_usage_period: { Args: never; Returns: string }
+      ensure_profile: {
+        Args: { _nickname?: string; _phone?: string }
+        Returns: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          is_banned: boolean
+          is_official: boolean
+          is_premium: boolean
+          level: number
+          nickname: string | null
+          phone: string | null
+          points: number
+          premium_until: string | null
+          total_recycled_kg: number
+          total_scans: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_app_stats: {
+        Args: never
+        Returns: {
+          total_listings: number
+          total_recycled: number
+          total_scans: number
+          total_users: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -599,6 +662,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_user_activity: {
+        Args: { _activity: string; _points?: number }
+        Returns: {
+          listings_count: number
+          points: number
+          scans_count: number
+        }[]
+      }
+      refresh_app_public_stats: { Args: never; Returns: undefined }
       refresh_profile_scan_count: {
         Args: { _user_id: string }
         Returns: undefined
