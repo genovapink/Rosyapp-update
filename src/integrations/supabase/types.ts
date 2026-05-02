@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_public_stats: {
+        Row: {
+          id: boolean
+          total_listings: number
+          total_recycled: number
+          total_scans: number
+          total_users: number
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          total_listings?: number
+          total_recycled?: number
+          total_scans?: number
+          total_users?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          total_listings?: number
+          total_recycled?: number
+          total_scans?: number
+          total_users?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           buyer_id: string
@@ -643,6 +670,7 @@ export type Database = {
           scans_count: number
         }[]
       }
+      refresh_app_public_stats: { Args: never; Returns: undefined }
       refresh_profile_scan_count: {
         Args: { _user_id: string }
         Returns: undefined
