@@ -23,14 +23,12 @@ const HomePage = () => {
   const [adIndex, setAdIndex] = useState(0);
 
   const fetchHomeData = async () => {
-    const [scansRes, profilesRes, adsRes] = await Promise.all([
-      supabase.from("scan_results").select("id", { count: "exact", head: true }),
-      supabase.from("profiles").select("id, total_recycled_kg"),
+    const [statsRes, adsRes] = await Promise.all([
+      supabase.from("app_public_stats" as any).select("total_users, total_scans, total_recycled").single(),
       supabase.from("promotions").select("*").eq("status", "active"),
     ]);
-    const profiles = (profilesRes.data || []) as any[];
-    const totalRecycled = profiles.reduce((acc: number, p: any) => acc + (Number(p.total_recycled_kg) || 0), 0);
-    setGlobalStats({ scans: scansRes.count || 0, recycled: totalRecycled, users: profiles.length });
+    const stats = statsRes.data as any;
+    setGlobalStats({ scans: stats?.total_scans || 0, recycled: Number(stats?.total_recycled || 0), users: stats?.total_users || 0 });
     const now = new Date();
     const ads = ((adsRes.data || []) as any[]).filter((ad: any) => ad.end_date && new Date(ad.end_date) > now);
     setActiveAds(ads);
@@ -50,8 +48,7 @@ const HomePage = () => {
 
     const channel = supabase
       .channel("home-realtime-data")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, fetchHomeData)
-      .on("postgres_changes", { event: "*", schema: "public", table: "scan_results" }, fetchHomeData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_public_stats" }, fetchHomeData)
       .on("postgres_changes", { event: "*", schema: "public", table: "promotions" }, fetchHomeData)
       .subscribe();
 
