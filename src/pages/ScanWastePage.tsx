@@ -37,7 +37,7 @@ const ScanWastePage = () => {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, refreshProfile } = useAuth();
-  const { checkScanAllowed, incrementCounter, awardPoints, isPremium, limits } = useUsageLimits();
+  const { checkScanAllowed, recordActivity, isPremium, limits } = useUsageLimits();
   const navigate = useNavigate();
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,11 +127,7 @@ const ScanWastePage = () => {
       if (saveError) throw saveError;
       if (savedScan) setSavedScanId((savedScan as any).id);
 
-      // Increment counter & award point
-      await Promise.all([
-        incrementCounter("scans_count"),
-        awardPoints(POINTS_PER_SCAN),
-      ]);
+      await recordActivity("scan", POINTS_PER_SCAN);
       toast.success(`+${POINTS_PER_SCAN} Rosy Point!`);
 
       await refreshProfile();
@@ -142,7 +138,7 @@ const ScanWastePage = () => {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [capturedImage, selectedCategory, user, checkScanAllowed, incrementCounter, awardPoints, isPremium]);
+  }, [capturedImage, selectedCategory, user, checkScanAllowed, recordActivity, isPremium]);
 
   const shareToTwitter = () => {
     if (!result) return;
