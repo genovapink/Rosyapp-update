@@ -40,6 +40,7 @@ const categories = [
 ];
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+const escapePostgrestSearch = (value: string) => value.replace(/[%,()]/g, "").trim();
 
 const MarketPage = () => {
   const [items, setItems] = useState<MarketItem[]>([]);
@@ -103,10 +104,15 @@ const MarketPage = () => {
       const mappedType = wasteTypeMap[activeFilter];
       if (mappedType) query = query.eq("waste_type", mappedType);
     }
-    const keyword = searchTerm.trim();
+    const keyword = escapePostgrestSearch(searchTerm);
     if (keyword) query = query.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%,location.ilike.%${keyword}%,waste_type.ilike.%${keyword}%`);
     const { data, error } = await query;
-    if (error) { console.error(error); setLoading(false); return; }
+    if (error) {
+      console.error(error);
+      toast.error(error.message || "Gagal membaca listing marketplace");
+      setLoading(false);
+      return;
+    }
 
     const userIds = [...new Set((data as any[]).map((d: any) => d.user_id))];
     let profiles: any[] = [];
@@ -416,9 +422,12 @@ const MarketPage = () => {
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {items.map((item) => (
-              <motion.button key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+              <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                 onClick={() => setSelectedItem(item)}
-                className="bg-card border border-border rounded-xl overflow-hidden text-left relative">
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedItem(item); }}
+                role="button"
+                tabIndex={0}
+                className="bg-card border border-border rounded-xl overflow-hidden text-left relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {item.image_urls[0] ? (
                   <img src={item.image_urls[0]} alt={item.title} className="w-full aspect-square object-cover" />
                 ) : (
@@ -442,7 +451,7 @@ const MarketPage = () => {
                     {!item.seller_is_official && item.seller_is_premium && <VerifiedBadge variant="premium" className="w-3 h-3" />}
                   </p>
                 </div>
-              </motion.button>
+              </motion.div>
             ))}
           </div>
         )}
